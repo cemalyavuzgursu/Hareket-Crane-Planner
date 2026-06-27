@@ -1,0 +1,489 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="tr"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Hareket Crane Planner - CRANE-LOGIC PRO</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700;800&amp;family=JetBrains+Mono:wght@400;500;600&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "error-container": "#93000a",
+                        "secondary-fixed-dim": "#ffba20",
+                        "on-background": "#e2e2e6",
+                        "primary-container": "#ff6700",
+                        "on-primary": "#571e00",
+                        "on-secondary": "#412d00",
+                        "on-tertiary-fixed-variant": "#005226",
+                        "surface": "#111316",
+                        "on-secondary-fixed": "#271900",
+                        "primary": "#ffb595",
+                        "primary-fixed-dim": "#ffb595",
+                        "on-surface": "#e2e2e6",
+                        "on-secondary-fixed-variant": "#5e4200",
+                        "on-primary-fixed": "#351000",
+                        "outline": "#aa8a7d",
+                        "on-primary-container": "#561e00",
+                        "surface-bright": "#37393d",
+                        "primary-fixed": "#ffdbcd",
+                        "inverse-primary": "#a23f00",
+                        "tertiary": "#00e475",
+                        "on-error": "#690005",
+                        "surface-tint": "#ffb595",
+                        "surface-variant": "#333538",
+                        "secondary": "#ffdb9d",
+                        "secondary-container": "#feb700",
+                        "error": "#ffb4ab",
+                        "inverse-on-surface": "#2f3034",
+                        "on-error-container": "#ffdad6",
+                        "on-tertiary-fixed": "#00210b",
+                        "on-tertiary-container": "#003818",
+                        "on-primary-fixed-variant": "#7c2e00",
+                        "surface-dim": "#111316",
+                        "secondary-fixed": "#ffdea8",
+                        "on-surface-variant": "#e3bfb1",
+                        "tertiary-fixed": "#62ff96",
+                        "on-tertiary": "#003918",
+                        "surface-container-low": "#1a1c1f",
+                        "on-secondary-container": "#6b4b00",
+                        "inverse-surface": "#e2e2e6",
+                        "tertiary-fixed-dim": "#00e475",
+                        "tertiary-container": "#00ae58",
+                        "surface-container-lowest": "#0c0e11",
+                        "surface-container": "#1e2023",
+                        "surface-container-highest": "#333538",
+                        "surface-container-high": "#282a2d",
+                        "background": "#111316",
+                        "outline-variant": "#5a4136"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.125rem",
+                        "lg": "0.25rem",
+                        "xl": "0.5rem",
+                        "full": "0.75rem"
+                    },
+                    "spacing": {
+                        "unit": "4px",
+                        "gutter": "12px",
+                        "margin-desktop": "24px",
+                        "margin-mobile": "16px",
+                        "density-tight": "4px",
+                        "density-high": "8px"
+                    },
+                    "fontFamily": {
+                        "body-lg": ["Hanken Grotesk"],
+                        "headline-lg": ["Hanken Grotesk"],
+                        "body-sm": ["Hanken Grotesk"],
+                        "data-label": ["JetBrains Mono"],
+                        "data-display": ["JetBrains Mono"],
+                        "label-mobile": ["Hanken Grotesk"],
+                        "headline-md": ["Hanken Grotesk"]
+                    },
+                    "fontSize": {
+                        "body-lg": ["16px", {"lineHeight": "24px", "fontWeight": "400"}],
+                        "headline-lg": ["32px", {"lineHeight": "40px", "letterSpacing": "-0.02em", "fontWeight": "700"}],
+                        "body-sm": ["14px", {"lineHeight": "20px", "fontWeight": "400"}],
+                        "data-label": ["12px", {"lineHeight": "16px", "fontWeight": "500"}],
+                        "data-display": ["18px", {"lineHeight": "24px", "letterSpacing": "0.02em", "fontWeight": "600"}],
+                        "label-mobile": ["13px", {"lineHeight": "16px", "fontWeight": "600"}],
+                        "headline-md": ["24px", {"lineHeight": "32px", "fontWeight": "600"}]
+                    }
+                }
+            }
+        }
+    </script>
+<style>
+        body {
+            background-color: #111316;
+            color: #e2e2e6;
+            font-family: 'Hanken Grotesk', sans-serif;
+            overflow-x: hidden;
+        }
+        .engineering-grid {
+            background-image: radial-gradient(#2D323A 1px, transparent 1px);
+            background-size: 20px 20px;
+        }
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        input:focus {
+            outline: none;
+            box-shadow: 0 0 0 2px #ff6700;
+        }
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 4px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: #111316;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: #333538;
+            border-radius: 2px;
+        }
+    </style>
+</head>
+<body class="flex flex-col h-screen">
+<!-- TopNavBar -->
+<header class="flex justify-between items-center px-margin-desktop w-full h-16 bg-surface border-b border-outline-variant z-50 fixed top-0">
+<div class="flex items-center gap-8">
+<span class="font-headline-md text-headline-md font-bold text-primary tracking-tighter">CRANE-LOGIC PRO</span>
+<nav class="hidden md:flex gap-6 items-center h-full">
+<a class="text-primary border-b-2 border-primary font-bold pb-1 text-body-lg font-body-lg hover:text-primary transition-colors" href="#">PLANNER</a>
+<a class="text-on-surface-variant font-medium text-body-lg font-body-lg hover:text-primary transition-colors" href="#">FLEET</a>
+<a class="text-on-surface-variant font-medium text-body-lg font-body-lg hover:text-primary transition-colors" href="#">HISTORY</a>
+<a class="text-on-surface-variant font-medium text-body-lg font-body-lg hover:text-primary transition-colors" href="#">SAFETY</a>
+</nav>
+</div>
+<div class="flex items-center gap-4">
+<div class="hidden lg:flex items-center bg-surface-container-high px-4 py-2 rounded-lg border border-outline-variant mr-4">
+<span class="material-symbols-outlined text-on-surface-variant mr-2">search</span>
+<input class="bg-transparent border-none p-0 focus:ring-0 text-sm w-40 text-on-surface" placeholder="Vinc No Ara..." type="text"/>
+</div>
+<div class="flex items-center gap-3">
+<button class="material-symbols-outlined text-on-surface-variant hover:text-primary transition-colors">notifications</button>
+<button class="material-symbols-outlined text-on-surface-variant hover:text-primary transition-colors">settings</button>
+<button class="bg-primary-container text-on-primary-container font-bold px-6 py-2 rounded-lg text-sm active:scale-95 duration-150">HESAPLA</button>
+</div>
+</div>
+</header>
+<div class="flex flex-1 pt-16 overflow-hidden">
+<!-- Left SideNavBar (Crane Config) -->
+<aside class="w-72 flex flex-col h-full bg-surface-container border-r border-outline-variant py-spacing-gutter custom-scrollbar overflow-y-auto">
+<div class="px-6 mb-8">
+<h2 class="text-label-mobile font-label-mobile uppercase tracking-widest text-on-surface-variant mb-4">KONFİGÜRASYON</h2>
+<div class="space-y-6">
+<!-- Crane Selector -->
+<div class="space-y-2">
+<label class="font-data-label text-data-label text-primary uppercase">VİNÇ MODELİ</label>
+<div class="relative">
+<select class="w-full bg-surface-container-lowest border border-outline-variant rounded-lg px-4 py-3 text-on-surface focus:border-primary appearance-none cursor-pointer">
+<option>LIEBHERR LTM 1250</option>
+<option>TEREX AC 500</option>
+<option>GROVE GMK 6300</option>
+</select>
+<span class="material-symbols-outlined absolute right-3 top-3 pointer-events-none text-outline">expand_more</span>
+</div>
+</div>
+<!-- Counterweight Toggle -->
+<div class="space-y-2">
+<label class="font-data-label text-data-label text-primary uppercase">KARŞI AĞIRLIK (t)</label>
+<div class="grid grid-cols-2 bg-surface-container-lowest rounded-lg p-1 border border-outline-variant">
+<button class="py-2 text-xs font-bold rounded bg-primary-container text-on-primary-container">40t STANDART</button>
+<button class="py-2 text-xs font-bold rounded text-on-surface-variant hover:bg-surface-variant">0t YÜKSÜZ</button>
+</div>
+</div>
+<!-- Boom Length -->
+<div class="space-y-2">
+<label class="font-data-label text-data-label text-primary uppercase">BOM UZUNLUĞU (m)</label>
+<div class="flex items-center gap-3">
+<input class="flex-1 accent-primary-container" max="60" min="15" type="range" value="32"/>
+<span class="font-data-display text-data-display text-on-surface w-12 text-right">32.4</span>
+</div>
+</div>
+<!-- Outrigger Config -->
+<div class="space-y-2">
+<label class="font-data-label text-data-label text-primary uppercase">DESTEK AYAK (OUTRIGGER)</label>
+<select class="w-full bg-surface-container-lowest border border-outline-variant rounded-lg px-4 py-3 text-on-surface focus:border-primary appearance-none cursor-pointer">
+<option>100% TAM AÇIK (8.3m)</option>
+<option>75% KISMİ AÇIK (6.2m)</option>
+<option>50% YARIM AÇIK (4.1m)</option>
+</select>
+</div>
+<!-- Capacity Mode -->
+<div class="space-y-2">
+<label class="font-data-label text-data-label text-primary uppercase">KAPASİTE MODU</label>
+<div class="flex gap-2">
+<button class="flex-1 py-2 border border-outline-variant rounded text-xs font-bold text-on-surface-variant hover:border-primary">75% (DIN)</button>
+<button class="flex-1 py-2 border-2 border-primary-container rounded text-xs font-bold text-primary-container bg-primary-container/10">85% (ISO)</button>
+</div>
+</div>
+</div>
+</div>
+<div class="mt-auto px-6 border-t border-outline-variant pt-6">
+<button class="w-full bg-surface-container-highest hover:bg-primary-container hover:text-on-primary-container transition-all text-on-surface font-bold py-3 rounded-lg flex items-center justify-center gap-2 mb-4">
+<span class="material-symbols-outlined text-sm">save</span>
+                    KONFİGÜRASYONU KAYDET
+                </button>
+<div class="flex flex-col gap-2">
+<button class="flex items-center gap-3 px-3 py-2 text-on-surface-variant hover:bg-surface-variant rounded-lg transition-colors">
+<span class="material-symbols-outlined">terminal</span>
+<span class="font-label-mobile text-label-mobile uppercase">LOG KAYITLARI</span>
+</button>
+<button class="flex items-center gap-3 px-3 py-2 text-on-surface-variant hover:bg-surface-variant rounded-lg transition-colors">
+<span class="material-symbols-outlined">help</span>
+<span class="font-label-mobile text-label-mobile uppercase">TEKNİK DESTEK</span>
+</button>
+</div>
+</div>
+</aside>
+<!-- Main Content Workspace -->
+<main class="flex-1 flex flex-col bg-background overflow-y-auto custom-scrollbar p-6">
+<div class="grid grid-cols-12 gap-6 h-full">
+<!-- Center Column: Data & Diagram -->
+<div class="col-span-12 lg:col-span-8 flex flex-col gap-6">
+<div class="grid grid-cols-2 gap-6">
+<!-- Yük Bilgileri -->
+<section class="bg-surface-container rounded-xl border border-outline-variant p-5 engineering-grid">
+<div class="flex items-center gap-2 mb-4 border-b border-outline-variant pb-2">
+<span class="material-symbols-outlined text-primary text-xl">weight</span>
+<h3 class="font-headline-md text-headline-md text-on-surface text-lg">YÜK BİLGİLERİ</h3>
+</div>
+<div class="grid grid-cols-2 gap-4">
+<div class="relative">
+<label class="absolute -top-2 left-2 px-1 bg-surface-container font-data-label text-[10px] text-outline uppercase">NET AĞIRLIK</label>
+<input class="w-full bg-surface-container-lowest border border-outline-variant rounded p-3 font-data-display text-on-surface text-right pr-12" type="text" value="28.45"/>
+<span class="absolute right-3 top-3 font-data-label text-outline">t</span>
+</div>
+<div class="relative">
+<label class="absolute -top-2 left-2 px-1 bg-surface-container font-data-label text-[10px] text-outline uppercase">SAPAN/EKİPMAN</label>
+<input class="w-full bg-surface-container-lowest border border-outline-variant rounded p-3 font-data-display text-on-surface text-right pr-12" type="text" value="1.20"/>
+<span class="absolute right-3 top-3 font-data-label text-outline">t</span>
+</div>
+<div class="relative col-span-2">
+<label class="absolute -top-2 left-2 px-1 bg-surface-container font-data-label text-[10px] text-outline uppercase">BOYUTLAR (ExBxY)</label>
+<input class="w-full bg-surface-container-lowest border border-outline-variant rounded p-3 font-data-display text-on-surface" type="text" value="4.50 x 8.20 x 3.10"/>
+<span class="absolute right-3 top-3 font-data-label text-outline">m</span>
+</div>
+</div>
+</section>
+<!-- Geometri Inputs -->
+<section class="bg-surface-container rounded-xl border border-outline-variant p-5 engineering-grid">
+<div class="flex items-center gap-2 mb-4 border-b border-outline-variant pb-2">
+<span class="material-symbols-outlined text-primary text-xl">straighten</span>
+<h3 class="font-headline-md text-headline-md text-on-surface text-lg">GEOMETRİ</h3>
+</div>
+<div class="grid grid-cols-2 gap-4">
+<div class="relative">
+<label class="absolute -top-2 left-2 px-1 bg-surface-container font-data-label text-[10px] text-outline uppercase">ÇALIŞMA YARIÇAPI</label>
+<input class="w-full bg-surface-container-lowest border border-outline-variant rounded p-3 font-data-display text-on-surface text-right pr-12" type="text" value="14.50"/>
+<span class="absolute right-3 top-3 font-data-label text-outline">m</span>
+</div>
+<div class="relative">
+<label class="absolute -top-2 left-2 px-1 bg-surface-container font-data-label text-[10px] text-outline uppercase">KALDIRMA YÜKSEKLİĞİ</label>
+<input class="w-full bg-surface-container-lowest border border-outline-variant rounded p-3 font-data-display text-on-surface text-right pr-12" type="text" value="18.25"/>
+<span class="absolute right-3 top-3 font-data-label text-outline">m</span>
+</div>
+<div class="relative">
+<label class="absolute -top-2 left-2 px-1 bg-surface-container font-data-label text-[10px] text-outline uppercase">BOM AÇISI</label>
+<input class="w-full bg-surface-container-lowest border border-outline-variant rounded p-3 font-data-display text-on-surface text-right pr-12" type="text" value="68.4"/>
+<span class="absolute right-3 top-3 font-data-label text-outline">deg</span>
+</div>
+<div class="relative">
+<label class="absolute -top-2 left-2 px-1 bg-surface-container font-data-label text-[10px] text-outline uppercase">RÜZGAR HIZI</label>
+<input class="w-full bg-surface-container-lowest border border-outline-variant rounded p-3 font-data-display text-on-surface text-right pr-12" type="text" value="9.2"/>
+<span class="absolute right-3 top-3 font-data-label text-outline">m/s</span>
+</div>
+</div>
+</section>
+</div>
+<!-- Diagram Workspace -->
+<div class="flex-1 bg-surface-container-lowest rounded-xl border-2 border-outline-variant relative overflow-hidden flex flex-col p-4 engineering-grid">
+<div class="flex justify-between items-start z-10">
+<div>
+<h4 class="font-bold text-primary tracking-widest text-xs">VİNÇ DİYAGRAMI - YAN GÖRÜNÜM</h4>
+<p class="text-[10px] text-outline-variant">ÖLÇEK 1:100 | LTM 1250-5.1</p>
+</div>
+<div class="flex gap-2">
+<button class="p-2 bg-surface-container-high rounded border border-outline-variant hover:border-primary transition-colors">
+<span class="material-symbols-outlined text-sm">zoom_in</span>
+</button>
+<button class="p-2 bg-surface-container-high rounded border border-outline-variant hover:border-primary transition-colors">
+<span class="material-symbols-outlined text-sm">fullscreen</span>
+</button>
+<button class="p-2 bg-surface-container-high rounded border border-outline-variant hover:border-primary transition-colors">
+<span class="material-symbols-outlined text-sm">layers</span>
+</button>
+</div>
+</div>
+<div class="flex-1 relative flex items-center justify-center p-8">
+<div class="absolute inset-0 opacity-20 pointer-events-none">
+<!-- Subtle radar/radius lines simulated with CSS circles if desired, or relying on image -->
+</div>
+<img alt="Crane schematic diagram" class="max-w-full max-h-full object-contain filter brightness-125 contrast-125" src="https://lh3.googleusercontent.com/aida/AP1WRLvFpG1X2omKfH8fnZp6GtnKQsZAKOvMmecrX0gxxrSj6rVjkMseI8vN-B0CbuTcXcyCU3MrHFSLcN3_PvedJuqkdTfWs8WtwGVdw_EhpTitnS67QluF8_QqUD3Cchn3mKNpvipf9W_4KTtC2socqEKZxMnxY26njb5G9bnN0tFFBfHB4WRgIChWy2h8rJ13CLqFe7V09ZXUpJWsdq9XjFZ8wTT1CXNo6SvvOGkDjoH3bkobeTPK-jI6"/>
+<!-- Dynamic Overlay Indicators (Simulated) -->
+<div class="absolute bottom-12 right-12 bg-surface-container-high/80 border border-outline-variant p-3 rounded backdrop-blur-sm">
+<div class="flex items-center gap-4">
+<div class="flex flex-col">
+<span class="text-[10px] text-outline font-bold">X-RAY RADIUS</span>
+<span class="font-data-display text-primary">14.50m</span>
+</div>
+<div class="w-px h-8 bg-outline-variant"></div>
+<div class="flex flex-col">
+<span class="text-[10px] text-outline font-bold">BOOM ANGLE</span>
+<span class="font-data-display text-tertiary">68.4°</span>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+<!-- Right Column: Results & Analysis -->
+<div class="col-span-12 lg:col-span-4 flex flex-col gap-4">
+<!-- CAPACITY GAUGE -->
+<div class="bg-surface-container rounded-xl border border-outline-variant p-6 engineering-grid overflow-hidden relative">
+<div class="absolute top-0 left-0 w-full h-1 bg-error-container animate-pulse"></div>
+<div class="flex flex-col items-center justify-center text-center">
+<span class="font-data-label text-data-label text-error mb-2 uppercase tracking-tighter">KRİTİK GÜVENLİK İHLALİ</span>
+<div class="relative w-48 h-48 flex items-center justify-center">
+<!-- SVG Gauge -->
+<svg class="w-full h-full transform -rotate-90">
+<circle class="text-surface-variant" cx="96" cy="96" fill="transparent" r="80" stroke="currentColor" stroke-width="12"></circle>
+<circle class="text-error" cx="96" cy="96" fill="transparent" r="80" stroke="currentColor" stroke-dasharray="502.6" stroke-dashoffset="0" stroke-width="12"></circle>
+</svg>
+<div class="absolute inset-0 flex flex-col items-center justify-center">
+<span class="font-data-display text-[32px] leading-none text-error font-extrabold">104.65%</span>
+<span class="font-data-label text-data-label text-error mt-1 uppercase font-bold">KAPASİTE AŞIMI</span>
+</div>
+</div>
+<div class="mt-4 w-full bg-error-container/20 border border-error-container text-error p-2 rounded text-xs font-bold flex items-center gap-2 justify-center">
+<span class="material-symbols-outlined text-sm">warning</span>
+                                KALDIRMA İŞLEMİ ENGELLENDİ
+                            </div>
+</div>
+</div>
+<!-- Safety Distances -->
+<div class="bg-surface-container rounded-xl border border-outline-variant p-4">
+<h4 class="font-data-label text-data-label text-on-surface-variant uppercase mb-3 flex items-center gap-2">
+<span class="material-symbols-outlined text-sm">security</span> GÜVENLİK MESAFELERİ
+                        </h4>
+<div class="space-y-3">
+<div class="flex justify-between items-center p-3 bg-surface-container-lowest rounded border-l-4 border-tertiary">
+<span class="text-xs font-bold text-on-surface">ENGEL MESAFESİ</span>
+<span class="font-data-display text-tertiary">8.73 m</span>
+</div>
+<div class="flex justify-between items-center p-3 bg-surface-container-lowest rounded border-l-4 border-secondary-container">
+<span class="text-xs font-bold text-on-surface">YÜK SALINIM PAYI</span>
+<span class="font-data-display text-secondary-container">1.22 m</span>
+</div>
+</div>
+</div>
+<!-- Geometry Details -->
+<div class="bg-surface-container rounded-xl border border-outline-variant p-4">
+<h4 class="font-data-label text-data-label text-on-surface-variant uppercase mb-3 flex items-center gap-2">
+<span class="material-symbols-outlined text-sm">architecture</span> GEOMETRİ DETAYLARI
+                        </h4>
+<div class="grid grid-cols-2 gap-2">
+<div class="bg-surface-container-lowest p-3 rounded">
+<p class="text-[10px] text-outline uppercase mb-1">KOÇA YÜKSEKLİĞİ</p>
+<p class="font-data-display text-on-surface">13.41 m</p>
+</div>
+<div class="bg-surface-container-lowest p-3 rounded">
+<p class="text-[10px] text-outline uppercase mb-1">SAPAN BOYU</p>
+<p class="font-data-display text-on-surface">6.86 m</p>
+</div>
+<div class="bg-surface-container-lowest p-3 rounded">
+<p class="text-[10px] text-outline uppercase mb-1">ŞASİ MESAFESİ</p>
+<p class="font-data-display text-on-surface">3.20 m</p>
+</div>
+<div class="bg-surface-container-lowest p-3 rounded">
+<p class="text-[10px] text-outline uppercase mb-1">EKİPMAN PAYI</p>
+<p class="font-data-display text-on-surface">0.50 m</p>
+</div>
+</div>
+</div>
+<!-- Outrigger Loads -->
+<div class="bg-surface-container rounded-xl border border-outline-variant p-4">
+<h4 class="font-data-label text-data-label text-on-surface-variant uppercase mb-3 flex items-center gap-2">
+<span class="material-symbols-outlined text-sm">settings_input_component</span> AYAK YÜKLERİ (TON)
+                        </h4>
+<div class="grid grid-cols-2 gap-4">
+<div class="flex flex-col">
+<div class="flex justify-between text-[10px] font-bold px-1 py-1">
+<span>ÖN SOL</span>
+<span class="text-primary">18.2t</span>
+</div>
+<div class="w-full bg-surface-container-lowest h-2 rounded overflow-hidden">
+<div class="bg-primary h-full" style="width: 65%"></div>
+</div>
+</div>
+<div class="flex flex-col">
+<div class="flex justify-between text-[10px] font-bold px-1 py-1">
+<span>ÖN SAĞ</span>
+<span class="text-primary">19.5t</span>
+</div>
+<div class="w-full bg-surface-container-lowest h-2 rounded overflow-hidden">
+<div class="bg-primary h-full" style="width: 70%"></div>
+</div>
+</div>
+<div class="flex flex-col">
+<div class="flex justify-between text-[10px] font-bold px-1 py-1">
+<span>ARKA SOL</span>
+<span class="text-primary">22.8t</span>
+</div>
+<div class="w-full bg-surface-container-lowest h-2 rounded overflow-hidden">
+<div class="bg-primary h-full" style="width: 82%"></div>
+</div>
+</div>
+<div class="flex flex-col">
+<div class="flex justify-between text-[10px] font-bold px-1 py-1">
+<span>ARKA SAĞ</span>
+<span class="text-primary">21.1t</span>
+</div>
+<div class="w-full bg-surface-container-lowest h-2 rounded overflow-hidden">
+<div class="bg-primary h-full" style="width: 76%"></div>
+</div>
+</div>
+</div>
+</div>
+<!-- CTA Actions -->
+<div class="mt-auto flex flex-col gap-3">
+<button class="w-full bg-primary-container text-on-primary-container hover:bg-primary-fixed-dim transition-all py-4 rounded-xl font-bold uppercase tracking-widest flex items-center justify-center gap-3 active:scale-[0.98]">
+<span class="material-symbols-outlined">picture_as_pdf</span>
+                            PDF RAPOR OLUŞTUR
+                        </button>
+<p class="text-[10px] leading-relaxed text-outline-variant text-center px-4 italic">
+                            DİKKAT: Bu plan yetkili kaldırma mühendisi tarafından manuel doğrulanmalıdır. Tüm veriler teorik hesaplamalara dayanmaktadır.
+                        </p>
+</div>
+</div>
+</div>
+</main>
+</div>
+<!-- Mobile Bottom NavBar (Visible only on mobile) -->
+<nav class="md:hidden fixed bottom-0 left-0 w-full bg-surface border-t border-outline-variant flex justify-around py-3 z-50">
+<button class="flex flex-col items-center text-primary">
+<span class="material-symbols-outlined">dashboard</span>
+<span class="text-[10px] font-bold uppercase">Planner</span>
+</button>
+<button class="flex flex-col items-center text-on-surface-variant">
+<span class="material-symbols-outlined">settings_input_component</span>
+<span class="text-[10px] font-bold uppercase">Konfig</span>
+</button>
+<button class="flex flex-col items-center text-on-surface-variant">
+<span class="material-symbols-outlined">calculate</span>
+<span class="text-[10px] font-bold uppercase">Hesapla</span>
+</button>
+<button class="flex flex-col items-center text-on-surface-variant">
+<span class="material-symbols-outlined">history</span>
+<span class="text-[10px] font-bold uppercase">Arşiv</span>
+</button>
+</nav>
+<script>
+        // Micro-interactions and simulation logic
+        document.querySelectorAll('input').forEach(input => {
+            input.addEventListener('input', (e) => {
+                // Potential for real-time validation or visual update triggers here
+                console.log('Value changed:', e.target.value);
+            });
+        });
+
+        // Simple button active state visual feedback handler
+        document.querySelectorAll('button').forEach(btn => {
+            btn.addEventListener('mousedown', () => {
+                btn.classList.add('scale-95');
+            });
+            btn.addEventListener('mouseup', () => {
+                btn.classList.remove('scale-95');
+            });
+            btn.addEventListener('mouseleave', () => {
+                btn.classList.remove('scale-95');
+            });
+        });
+    </script>
+</body></html>

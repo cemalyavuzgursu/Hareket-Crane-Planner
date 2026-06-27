@@ -1,0 +1,183 @@
+/* Palet & font: Stitch tasarımından ("Hareket Crane Planner Dashboard") */
+@import url("https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap");
+
+:root {
+  --bg: #0c0e11;
+  --bg-2: #111316;
+  --panel: #15171b;
+  --panel-2: #1a1c1f;
+  --border: #282a2d;
+  --border-2: #37393d;
+  --text: #e2e2e6;
+  --text-dim: #9ca3af;
+  --text-faint: #6b7280;
+  --accent: #ffba20;     /* amber */
+  --orange: #ff6700;     /* safety orange */
+  --green: #00e475;
+  --red: #ff5a4d;
+  --blue: #5ad1ff;
+  --mono: "JetBrains Mono", "SF Mono", "Consolas", ui-monospace, monospace;
+  --sans: "Hanken Grotesk", system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+
+* { box-sizing: border-box; }
+
+html, body, #root {
+  margin: 0;
+  height: 100%;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--sans);
+  font-size: 14px;
+}
+
+.app {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  overflow: hidden;
+}
+
+/* Top bar */
+.topbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 18px;
+  background: linear-gradient(90deg, #0f172a, #131c2e);
+  border-bottom: 1px solid var(--border);
+}
+.topbar .logo {
+  width: 26px; height: 26px; border-radius: 6px;
+  background: linear-gradient(135deg, var(--orange), var(--accent));
+  display: grid; place-items: center; color: #1a1206; font-weight: 800;
+}
+.topbar h1 { font-size: 15px; margin: 0; letter-spacing: .3px; font-weight: 700; }
+.topbar .sub { color: var(--text-faint); font-size: 12px; }
+.topbar .spacer { flex: 1; }
+.topbar .pill {
+  font-size: 11px; color: var(--text-dim); border: 1px solid var(--border-2);
+  padding: 3px 9px; border-radius: 999px; background: var(--panel);
+}
+
+/* Layout */
+.layout {
+  display: grid;
+  grid-template-columns: 250px 1fr 380px;
+  gap: 0;
+  flex: 1;
+  min-height: 0;
+}
+.col { overflow-y: auto; padding: 14px; }
+.col.sidebar { background: var(--bg-2); border-right: 1px solid var(--border); }
+.col.center { background: var(--bg); display: flex; flex-direction: column; gap: 14px; }
+.col.results { background: var(--bg-2); border-left: 1px solid var(--border); }
+
+/* Section / card */
+.section-title {
+  font-size: 11px; text-transform: uppercase; letter-spacing: 1px;
+  color: var(--text-faint); margin: 4px 0 10px; font-weight: 700;
+}
+.card {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 14px;
+  margin-bottom: 12px;
+}
+.card h3 {
+  margin: 0 0 10px; font-size: 12px; text-transform: uppercase;
+  letter-spacing: .8px; color: var(--text-dim); font-weight: 700;
+}
+
+/* Form fields */
+.field { margin-bottom: 10px; }
+.field label { display: block; font-size: 12px; color: var(--text-dim); margin-bottom: 4px; }
+.field .unit { color: var(--text-faint); font-size: 11px; }
+input[type="number"], select {
+  width: 100%; padding: 8px 10px; background: var(--bg);
+  border: 1px solid var(--border-2); border-radius: 7px; color: var(--text);
+  font-family: var(--mono); font-size: 13px; outline: none;
+}
+input[type="number"]:focus, select:focus { border-color: var(--accent); }
+.grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+
+/* Toggle group */
+.toggle-group { display: flex; gap: 6px; }
+.toggle {
+  flex: 1; text-align: center; padding: 7px 0; border-radius: 7px;
+  border: 1px solid var(--border-2); background: var(--bg);
+  color: var(--text-dim); cursor: pointer; font-family: var(--mono); font-size: 13px;
+  user-select: none;
+}
+.toggle.active { background: var(--accent); color: #1a1206; border-color: var(--accent); font-weight: 700; }
+
+/* Results */
+.gauge {
+  text-align: center; padding: 8px 0 12px;
+}
+.gauge .pct { font-family: var(--mono); font-size: 44px; font-weight: 800; line-height: 1; }
+.gauge .status {
+  display: inline-block; margin-top: 8px; padding: 4px 12px; border-radius: 999px;
+  font-size: 12px; font-weight: 700; letter-spacing: .5px;
+}
+.bar { height: 10px; border-radius: 6px; background: var(--bg); overflow: hidden; margin-top: 10px; border: 1px solid var(--border); }
+.bar > div { height: 100%; border-radius: 6px; transition: width .3s; }
+
+.ok { color: var(--green); }
+.warn { color: var(--accent); }
+.bad { color: var(--red); }
+.status.ok { background: rgba(34,197,94,.15); color: var(--green); }
+.status.bad { background: rgba(239,68,68,.18); color: var(--red); }
+
+.kv { display: flex; justify-content: space-between; align-items: baseline; padding: 6px 0; border-bottom: 1px dashed var(--border); }
+.kv:last-child { border-bottom: none; }
+.kv .k { color: var(--text-dim); font-size: 13px; }
+.kv .v { font-family: var(--mono); font-size: 15px; font-weight: 600; }
+.kv .v small { color: var(--text-faint); font-weight: 400; }
+
+.btn {
+  width: 100%; padding: 11px; border-radius: 8px; border: none; cursor: pointer;
+  font-weight: 700; font-size: 14px; margin-top: 4px;
+}
+/* Dairesel kapasite gauge (Stitch stili) */
+.ring-wrap { display: grid; place-items: center; padding: 6px 0 2px; }
+.ring { position: relative; width: 170px; height: 170px; }
+.ring svg { transform: rotate(-90deg); }
+.ring .center {
+  position: absolute; inset: 0; display: grid; place-content: center; text-align: center;
+}
+.ring .center .pct { font-family: var(--mono); font-size: 32px; font-weight: 800; line-height: 1; }
+.ring .center .lbl { font-size: 11px; letter-spacing: 1px; font-weight: 700; margin-top: 6px; }
+
+.banner {
+  display: flex; align-items: center; gap: 8px; padding: 9px 12px; border-radius: 8px;
+  font-size: 13px; font-weight: 700; margin: 6px 0 12px;
+}
+.banner.bad { background: rgba(255,90,77,.12); border: 1px solid rgba(255,90,77,.45); color: #ffb4ab; }
+.banner.ok { background: rgba(0,228,117,.1); border: 1px solid rgba(0,228,117,.4); color: #62ff96; }
+
+.btn.primary { background: linear-gradient(135deg, var(--orange), var(--accent)); color: #1a1206; }
+.btn.primary:hover { filter: brightness(1.08); }
+.btn.ghost { background: var(--panel-2); color: var(--text); border: 1px solid var(--border-2); }
+
+.disclaimer {
+  font-size: 11px; color: var(--text-faint); line-height: 1.5; margin-top: 12px;
+  padding: 10px; border: 1px dashed var(--border-2); border-radius: 8px;
+  background: rgba(245,158,11,.04);
+}
+.error-box {
+  background: rgba(239,68,68,.1); border: 1px solid rgba(239,68,68,.4);
+  color: #fca5a5; padding: 10px 12px; border-radius: 8px; font-size: 13px; margin-bottom: 10px;
+}
+
+/* Viz tabs */
+.viz { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; flex: 1; min-height: 320px; display: flex; flex-direction: column; }
+.viz-tabs { display: flex; gap: 2px; padding: 8px 10px; border-bottom: 1px solid var(--border); }
+.viz-tab { padding: 6px 14px; border-radius: 7px; cursor: pointer; font-size: 12px; color: var(--text-dim); }
+.viz-tab.active { background: var(--panel-2); color: var(--text); font-weight: 600; }
+.viz-body { flex: 1; min-height: 0; position: relative; }
+
+.legend { display: flex; gap: 14px; flex-wrap: wrap; padding: 8px 12px; font-size: 11px; color: var(--text-dim); border-top: 1px solid var(--border); }
+.legend span { display: inline-flex; align-items: center; gap: 5px; }
+.swatch { width: 11px; height: 11px; border-radius: 3px; display: inline-block; }
