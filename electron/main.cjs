@@ -49,10 +49,26 @@ function createWindow() {
     win.show();
   });
 
-  // Harici bağlantıları varsayılan tarayıcıda aç.
+  // Harici bağlantıları varsayılan tarayıcıda aç — yalnızca güvenli şemalara izin ver.
   win.webContents.setWindowOpenHandler(({ url }) => {
-    shell.openExternal(url);
+    try {
+      const { protocol } = new URL(url);
+      if (protocol === "https:" || protocol === "http:" || protocol === "mailto:") {
+        shell.openExternal(url);
+      }
+    } catch {
+      // Geçersiz URL — yok say.
+    }
     return { action: "deny" };
+  });
+
+  // Uygulama içinde güvenilir origin dışına gezinmeyi engelle.
+  win.webContents.on("will-navigate", (event, url) => {
+    const target = new URL(url);
+    const allowed = DEV_URL ? new URL(DEV_URL).origin : "file://";
+    if (DEV_URL ? target.origin !== allowed : target.protocol !== "file:") {
+      event.preventDefault();
+    }
   });
 
   if (DEV_URL) {
