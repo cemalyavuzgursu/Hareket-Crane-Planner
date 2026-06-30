@@ -5,8 +5,11 @@
  * Y is UP  ·  X is the boom-luffing-plane horizontal axis  ·  Z is lateral.
  * Ground plane sits at y = 0.
  */
+import { Component, Suspense, useMemo, type ReactNode } from 'react';
 import { Canvas } from '@react-three/fiber';
-import { OrbitControls, Line } from '@react-three/drei';
+import { OrbitControls, Line, useGLTF } from '@react-three/drei';
+import { Box3, Vector3 } from 'three';
+import type { SceneObject, SceneObjectKind } from '../engine/types';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Props interface (verbatim from specification)
@@ -26,6 +29,9 @@ export interface Crane3DProps {
   obstacleWidth?: number;      // m obstacle width (drawing only)
   outrigger: { Lx: number; Ly: number }; // outrigger span (m)
   clearanceWarning?: boolean;  // if true tint boom/load red
+  objects?: SceneObject[];     // environment objects (nesne kütüphanesi)
+  collidingIds?: string[];     // çakışan nesne id'leri → kırmızı tint
+  loadDiameterReal?: number;   // gerçek yük çapı (sapan çizimi için)
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -38,6 +44,68 @@ function safe(v: number, fallback: number): number {
 /** Return v if finite AND strictly positive, else fallback */
 function safePos(v: number, fallback: number): number {
   return Number.isFinite(v) && v > 0 ? v : fallback;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// İçe aktarılmış 3B model (glTF/GLB) — drei useGLTF ile yüklenir, sınırlayıcı
+// kutuya (width×depth×height) sığacak şekilde tek tip ölçeklenir ve tabanı yere
+// oturacak biçimde konumlanır.
+// ─────────────────────────────────────────────────────────────────────────────
+interface GltfModelProps {
+  url: string;
+  x: number;
+  z: number;
+  width: number;
+  depth: number;
+  height: number;
+  rotationY: number; // derece
+  hit: boolean;
+}
+
+function GltfModel({ url, x, z, width, depth, height, rotationY, hit }: GltfModelProps) {
+  const { scene } = useGLTF(url);
+  const cloned = useMemo(() => scene.clone(true), [scene]);
+
+  const { scale, offset } = useMemo(() => {
+    const box = new Box3().setFromObject(cloned);
+    const size = box.getSize(new Vector3());
+    const center = box.getCenter(new Vector3());
+    const sx = size.x > 1e-6 ? width / size.x : 1;
+    const sy = size.y > 1e-6 ? height / size.y : 1;
+    const sz = size.z > 1e-6 ? depth / size.z : 1;
+    const s = Math.min(sx, sy, sz); // tek tip ölçek — modeli kutuya sığdır
+    // Modeli yatayda ortala, tabanı yere (y=0) getir.
+    return {
+      scale: s,
+      offset: new Vector3(-center.x * s, -box.min.y * s, -center.z * s),
+    };
+  }, [cloned, width, depth, height]);
+
+  return (
+    <group position={[x, 0, z]} rotation={[0, (rotationY * Math.PI) / 180, 0]}>
+      <group position={offset.toArray()} scale={scale}>
+        <primitive object={cloned} />
+      </group>
+      {/* Çakışma varsa yarı saydam kırmızı sınırlayıcı kutu kaplaması */}
+      {hit && (
+        <mesh position={[0, height / 2, 0]}>
+          <boxGeometry args={[width, height, depth]} />
+          <meshStandardMaterial color="#ef4444" transparent opacity={0.3} />
+        </mesh>
+      )}
+    </group>
+  );
+}
+
+/** Model yüklenemezse (bozuk/eksik dosya) sahneyi çökertmeden yedek gösterir. */
+class ModelBoundary extends Component<{ fallback: ReactNode; children: ReactNode }, { failed: boolean }> {
+  state = { failed: false };
+  static getDerivedStateFromError() {
+    return { failed: true };
+  }
+  render() {
+    return this.state.failed ? this.props.fallback : this.props.children;
+  }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -58,6 +126,8 @@ function CraneScene({
   obstacleWidth: obsWRaw,
   outrigger,
   clearanceWarning = false,
+  objects = [],
+  collidingIds = [],
 }: Crane3DProps) {
   // ── Sanitise inputs ────────────────────────────────────────────────────────
   const boomLen  = safePos(boomLenRaw, 10);
@@ -112,6 +182,29 @@ function CraneScene({
 
   // OrbitControls target: mid-height between ground and ~1/4 of boom tip height
   const targetY = Math.max(boomTipY * 0.4, 4);
+
+  // ── Sapan (sling) hatları: kanca → yük üst köşeleri ──────────────────────────
+  const hookPt: [number, number, number] = [radius, loadH + 0.65, 0];
+  const half = loadD / 2;
+  const slingTops: Array<[number, number, number]> = [
+    [radius + half, loadH, half],
+    [radius + half, loadH, -half],
+    [radius - half, loadH, half],
+    [radius - half, loadH, -half],
+  ];
+
+  // ── Çevre nesneleri (dünya çerçevesi, slew'den bağımsız) ─────────────────────
+  const collSet = new Set(collidingIds);
+  const objColor = (kind: SceneObjectKind, hit: boolean): string => {
+    if (hit) return '#ef4444';
+    switch (kind) {
+      case 'building': return '#475569';
+      case 'truck': return '#6d28d9';
+      case 'person': return '#10b981';
+      case 'powerline': return '#eab308';
+      default: return '#64748b'; // obstacle
+    }
+  };
 
   return (
     <>
@@ -228,6 +321,11 @@ function CraneScene({
           lineWidth={1.5}
         />
 
+        {/* ── Sapanlar (kanca → yük 4 üst köşesi) ───────────────────────── */}
+        {slingTops.map((top, i) => (
+          <Line key={`sling-${i}`} points={[hookPt, top]} color="#cbd5e1" lineWidth={1.2} />
+        ))}
+
         {/* ── Load box ─────────────────────────────────────────────────────
             Centred at (radius, loadH/2, 0) so its base sits on the ground
             and its top is at loadH (reached by the hook).
@@ -247,6 +345,55 @@ function CraneScene({
         </mesh>
 
       </group>
+
+      {/* ── Çevre nesneleri (nesne kütüphanesi) ──────────────────────────────
+          Dünya çerçevesinde sabit; üst yapı slew'inden etkilenmez. Çakışan
+          nesneler kırmızıya boyanır. Etiket için ufak bir işaret yok (3D),
+          renk + boyut yeterli.
+      ─────────────────────────────────────────────────────────────────── */}
+      {objects.map((o) => {
+        const hit = collSet.has(o.id);
+        const w = safePos(o.width, 1);
+        const d = safePos(o.depth, 1);
+        const hgt = safePos(o.height, 1);
+        const ox = safe(o.x, 0);
+        const oz = safe(o.z, 0);
+        const rotY = safe(o.rotationY ?? 0, 0);
+
+        // Sınırlayıcı kutu (model yüklenemezse yedek + primitif nesneler).
+        const boxMesh = (
+          <mesh position={[ox, hgt / 2, oz]} rotation={[0, (rotY * Math.PI) / 180, 0]}>
+            <boxGeometry args={[w, hgt, d]} />
+            <meshStandardMaterial
+              color={objColor(o.kind, hit)}
+              metalness={0.2}
+              roughness={0.8}
+              transparent
+              opacity={hit ? 0.85 : 0.7}
+            />
+          </mesh>
+        );
+
+        if (o.kind === 'model' && o.modelUrl) {
+          return (
+            <ModelBoundary key={o.id} fallback={boxMesh}>
+              <Suspense fallback={boxMesh}>
+                <GltfModel
+                  url={o.modelUrl}
+                  x={ox}
+                  z={oz}
+                  width={w}
+                  depth={d}
+                  height={hgt}
+                  rotationY={rotY}
+                  hit={hit}
+                />
+              </Suspense>
+            </ModelBoundary>
+          );
+        }
+        return <group key={o.id}>{boxMesh}</group>;
+      })}
 
       {/* ── Orbit camera controls ─────────────────────────────────────────── */}
       <OrbitControls makeDefault target={[0, targetY, 0]} />

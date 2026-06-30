@@ -44,6 +44,40 @@ export interface CraneModel {
   load_chart: LoadChart;
 }
 
+/** Çevre nesnesi türleri (nesne kütüphanesi). */
+export type SceneObjectKind =
+  | "building" // bina
+  | "obstacle" // genel engel / blok
+  | "truck" // kamyon / araç
+  | "person" // personel
+  | "powerline" // enerji hattı (yükseklikte yatay tehlike)
+  | "model"; // içe aktarılmış 3B model (glTF/GLB)
+
+/**
+ * 3D sahneye yerleştirilen çevre nesnesi. Konum slew merkezine göre plan
+ * koordinatıdır: x = ileri/geri ekseni (bom 0° iken +X), z = yanal eksen.
+ * Tüm ölçüler metre.
+ *
+ * kind === "model" ise gerçek geometri modelUrl'den yüklenir; width/depth/height
+ * çarpışma için sınırlayıcı kutu (bounding box) ve modeli o kutuya sığacak
+ * şekilde ölçeklemek için kullanılır.
+ */
+export interface SceneObject {
+  id: string;
+  kind: SceneObjectKind;
+  label: string;
+  x: number; // plan konumu, slew merkezine göre (m)
+  z: number; // plan konumu, yanal (m)
+  width: number; // X yönü ölçü (m)
+  depth: number; // Z yönü ölçü (m)
+  height: number; // yükseklik (m)
+  rotationY?: number; // Y ekseni dönüşü (derece) — yalnızca çizim
+  /** İçe aktarılmış model için blob/object URL (.glb/.gltf). Oturum içi. */
+  modelUrl?: string;
+  /** İçe aktarılan dosya adı (UI etiketi için). */
+  modelName?: string;
+}
+
 /** Hesap girdileri (PROJE.md §Girdiler). */
 export interface LiftInputs {
   load_weight: number; // yük ağırlığı (t)

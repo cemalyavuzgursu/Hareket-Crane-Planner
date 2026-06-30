@@ -4,8 +4,9 @@ export * from "./types.js";
 export * from "./capacity.js";
 export * from "./clearance.js";
 export * from "./outrigger.js";
+export * from "./collision.js";
 
-import type { CraneModel, LiftInputs } from "./types.js";
+import type { CraneModel, LiftInputs, SceneObject } from "./types.js";
 import { computeCapacity, type CapacityResult } from "./capacity.js";
 import { computeClearance, type ClearanceResult } from "./clearance.js";
 import {
@@ -13,6 +14,7 @@ import {
   parseOutriggerConfig,
   type OutriggerResult,
 } from "./outrigger.js";
+import { computeCollisions, type CollisionReport } from "./collision.js";
 
 export interface LiftResult {
   capacity: CapacityResult;
@@ -23,6 +25,8 @@ export interface FullLiftResult extends LiftResult {
   /** self_weight ve ayak konfigürasyonu varsa hesaplanır; aksi halde hata mesajı. */
   outrigger: OutriggerResult | null;
   outrigger_error?: string;
+  /** Çarpışma raporu (ana engel/yük + çevre nesneleri). */
+  collision: CollisionReport;
 }
 
 /** (A) + (B): bir vinç modeli ve girdiler için tam kaldırma hesabı. */
@@ -55,7 +59,12 @@ export function computeLift(crane: CraneModel, inp: LiftInputs): LiftResult {
 export function computeLiftFull(
   crane: CraneModel,
   inp: LiftInputs,
-  opts: { outrigger_config: string; slew_angle: number; pad_area?: number },
+  opts: {
+    outrigger_config: string;
+    slew_angle: number;
+    pad_area?: number;
+    objects?: SceneObject[];
+  },
 ): FullLiftResult {
   const base = computeLift(crane, inp);
   let outrigger: OutriggerResult | null = null;
@@ -80,5 +89,21 @@ export function computeLiftFull(
   } catch (e) {
     outrigger_error = e instanceof Error ? e.message : String(e);
   }
-  return { ...base, outrigger, outrigger_error };
+
+  const collision = computeCollisions(
+    {
+      g: crane.geometry_constants,
+      boom_length: inp.boom_length,
+      radius: inp.radius,
+      gama: base.clearance.gama,
+      slew_angle: opts.slew_angle,
+      load_height: inp.load_height,
+      load_diameter: inp.load_diameter,
+      hook_height: crane.geometry_constants.hook_height,
+      objects: opts.objects ?? [],
+    },
+    base.clearance,
+  );
+
+  return { ...base, outrigger, outrigger_error, collision };
 }

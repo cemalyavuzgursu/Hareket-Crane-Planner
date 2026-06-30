@@ -27,6 +27,9 @@ export interface OutriggerAtAngle {
   slew_angle: number; // derece
   corners: CornerLoad[];
   max_corner: CornerLoad;
+  /** Bileşke ağırlık merkezinin ayak dikdörtgeni merkezine göre kayması (m). */
+  cog_x: number;
+  cog_y: number;
 }
 
 export interface OutriggerResult {
@@ -35,6 +38,8 @@ export interface OutriggerResult {
   max_corner_load: number; // en büyük köşe yükü (t) — tüm açılar arası
   max_corner_label: string;
   ground_pressure?: number; // takoz altı basınç (t/m²), pad_area verilirse
+  /** Takoz temas alanı (m²) — köşe basınçlarını UI'da göstermek için. */
+  pad_area?: number;
   per_angle: OutriggerAtAngle[]; // tarama detayları
 }
 
@@ -79,7 +84,7 @@ export function cornerLoadsAtAngle(
   }));
 
   const max_corner = corners.reduce((m, c) => (c.load > m.load ? c : m), corners[0]);
-  return { slew_angle: slew_angle_deg, corners, max_corner };
+  return { slew_angle: slew_angle_deg, corners, max_corner, cog_x: e_x, cog_y: e_y };
 }
 
 /** 0–360° taraması; en kritik açı/ayak ve (opsiyonel) zemin basıncı. */
@@ -111,6 +116,7 @@ export function computeOutrigger(
   };
   if (inp.pad_area && inp.pad_area > 0) {
     result.ground_pressure = c.max_corner.load / inp.pad_area;
+    result.pad_area = inp.pad_area;
   }
   return result;
 }

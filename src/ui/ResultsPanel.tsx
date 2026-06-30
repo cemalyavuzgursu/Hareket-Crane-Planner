@@ -49,8 +49,14 @@ function Ring({ pct, over }: { pct: number; over: boolean }) {
   );
 }
 
+const SEV_LABEL: Record<string, string> = {
+  ok: "Uygun",
+  warning: "Uyarı",
+  collision: "ÇARPIŞMA",
+};
+
 export default function ResultsPanel({ result, state, onPdf }: Props) {
-  const { capacity, clearance, outrigger } = result;
+  const { capacity, clearance, outrigger, collision } = result;
   const over = capacity.status === "KAPASİTE AŞIMI";
 
   const obsBad = clearance.clearance_to_obstacle < 0;
@@ -99,6 +105,35 @@ export default function ResultsPanel({ result, state, onPdf }: Props) {
       </div>
 
       <div className="card">
+        <h3>Çarpışma Kontrolü</h3>
+        <div className={`banner ${collision.worst === "collision" ? "bad" : collision.worst === "warning" ? "" : "ok"}`}
+             style={collision.worst === "warning" ? { background: "rgba(255,186,32,.12)", border: "1px solid rgba(255,186,32,.45)", color: "#ffd479" } : undefined}>
+          {collision.worst === "collision"
+            ? "⛔ ÇARPIŞMA TESPİT EDİLDİ"
+            : collision.worst === "warning"
+              ? "⚠ Güvenlik payı düşük"
+              : "✓ Çarpışma yok"}
+        </div>
+        {collision.active.length === 0 ? (
+          <div className="kv">
+            <span className="k">Tüm mesafeler güvenli</span>
+            <span className="v ok">✓</span>
+          </div>
+        ) : (
+          collision.active.map((c) => (
+            <div className="kv" key={c.id}>
+              <span className="k" style={{ fontSize: 12 }}>
+                {c.source} → {c.target}
+              </span>
+              <span className={`v ${c.severity === "collision" ? "bad" : "warn"}`} style={{ fontSize: 13 }}>
+                {c.clearance_m.toFixed(2)}<small>m</small> · {SEV_LABEL[c.severity]}
+              </span>
+            </div>
+          ))
+        )}
+      </div>
+
+      <div className="card">
         <h3>Geometri Detayları</h3>
         <div className="kv">
           <span className="k">Maks Koça Yüksekliği</span>
@@ -132,6 +167,20 @@ export default function ResultsPanel({ result, state, onPdf }: Props) {
               <span className="k">Kritik Dönme Açısı</span>
               <span className="v">{outrigger.critical_angle.toFixed(0)} <small>°</small></span>
             </div>
+            {outrigger.ground_pressure != null && (
+              <div className="kv">
+                <span className="k">Maks Zemin Basıncı</span>
+                <span className="v warn">{outrigger.ground_pressure.toFixed(1)} <small>t/m²</small></span>
+              </div>
+            )}
+            {atCurrent && (
+              <div className="kv">
+                <span className="k">Ağırlık Merkezi Kayması (CoG)</span>
+                <span className="v">
+                  {Math.hypot(atCurrent.cog_x, atCurrent.cog_y).toFixed(2)} <small>m</small>
+                </span>
+              </div>
+            )}
             {atCurrent && (
               <div style={{ marginTop: 10 }}>
                 <div className="section-title" style={{ margin: "4px 0 6px" }}>

@@ -7,3 +7,8 @@ dist/
 .gstack/
 scratchpad/
 release/
+
+# Gizli anahtarlar / sırlar (repoya GİRMEMELİ)
+google javascript api.txt
+*api*key*.txt
+*.secret
