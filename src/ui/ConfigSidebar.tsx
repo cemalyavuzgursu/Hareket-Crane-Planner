@@ -10,9 +10,7 @@ interface Props {
 
 export default function ConfigSidebar({ cranes, crane, state, set }: Props) {
   return (
-    <div className="col sidebar">
-      <div className="section-title">Konfigürasyon</div>
-
+    <div className="cfg-fields">
       <div className="field">
         <label>Vinç Modeli</label>
         <select

@@ -60,7 +60,7 @@ function NumField({ label, unit, value, step = 0.1, min, onChange }: NumFieldPro
 
 export default function InputForm({ state, set }: Props) {
   return (
-    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+    <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: 12 }}>
       <div className="card" style={{ margin: 0 }}>
         <h3>⚖ Yük Bilgileri</h3>
         <NumField label="Yük Ağırlığı" unit="t" min={0} value={state.load_weight} onChange={(v) => set({ load_weight: v })} />

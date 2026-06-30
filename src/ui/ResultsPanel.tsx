@@ -70,7 +70,7 @@ export default function ResultsPanel({ result, state, onPdf }: Props) {
     outrigger.per_angle[0]) ?? null;
 
   return (
-    <div className="col results">
+    <div className="results-stack">
       <div className="card">
         <h3>Kapasite Kullanımı</h3>
         <Ring pct={capacity.utilization_pct} over={over} />
