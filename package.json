@@ -1,6 +1,6 @@
 {
   "name": "hareket-crane-planner",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "Vinç kaldırma planlama uygulaması — hesap çekirdeği + masaüstü/web UI",
   "author": "Hareket",
   "type": "module",
@@ -35,6 +35,8 @@
     "cross-env": "^7.0.3",
     "electron": "^33.4.11",
     "electron-builder": "^25.1.8",
+    "jimp": "^1.6.1",
+    "png-to-ico": "^3.0.1",
     "typescript": "^5.6.0",
     "vite": "^5.4.0",
     "vitest": "^2.1.0",
@@ -59,6 +61,7 @@
       "electron/**/*"
     ],
     "win": {
+      "icon": "build/icon.ico",
       "target": [
         {
           "target": "nsis",

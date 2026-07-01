@@ -27,6 +27,7 @@ const TOL = 0.01;
 
 describe("GOLDEN TEST — LIEBHERR LTM 1250 (Autocrane.xls 'LT 1250')", () => {
   const { capacity, clearance } = computeLift(crane, inputs);
+  if (!clearance) throw new Error("T modunda klerens null olmamalı");
 
   const cases: Array<[string, number, number]> = [
     ["total_load", capacity.total_load, 105.7],

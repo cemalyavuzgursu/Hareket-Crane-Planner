@@ -15,6 +15,9 @@ import { Section, SidePanel, Menu } from "./ui/shell";
 import { useUpdater } from "./ui/useUpdater";
 import UpdateBanner from "./ui/UpdateBanner";
 import { generateReport, generateMultiStepReport } from "./ui/report";
+// Logo'yu modül olarak içe aktar → Vite paketleyip base'e göre göreli yol üretir,
+// böylece hem dev hem de paketlenmiş (file://) uygulamada doğru yüklenir.
+import logoW from "./assets/brand/logo_w.png";
 
 /** Ayak takozu (pad) temas alanı varsayımı (m²) — zemin basıncı için. */
 const PAD_AREA = 1.0;
@@ -51,6 +54,11 @@ export default function App() {
           outrigger_config: c.outrigger_configs.includes(next.outrigger_config)
             ? next.outrigger_config
             : c.outrigger_configs[0],
+          capacity_pct: (c.capacity_pct_options ?? [75, 85]).includes(next.capacity_pct)
+            ? next.capacity_pct
+            : (c.capacity_pct_options ?? [75, 85])[0],
+          // Vinçte jib tablosu yoksa jib modundan çık.
+          lift_config: c.jib_charts ? next.lift_config : "T",
         };
       }
       return next;
@@ -68,6 +76,14 @@ export default function App() {
         slew_angle: state.slew_angle,
         pad_area: PAD_AREA,
         objects: state.objects,
+        jib:
+          state.lift_config !== "T"
+            ? {
+                config: state.lift_config,
+                jib_length: state.jib_length,
+                jib_offset: state.jib_offset,
+              }
+            : undefined,
       });
       return { result: r, error: null };
     } catch (e) {
@@ -147,7 +163,7 @@ export default function App() {
     <div className="cad">
       {/* ── Başlık / menü çubuğu ──────────────────────────────────────────── */}
       <div className="titlebar">
-        <img className="brand-logo" src="/brand/logo_w.png" alt="Hareket" />
+        <img className="brand-logo" src={logoW} alt="Hareket" />
         <span className="brand-name">Crane Planner</span>
         <span className="brand-sub">· Vinç Kaldırma Planlama</span>
         <Menu
@@ -212,7 +228,9 @@ export default function App() {
         )}
         <span className="pill">{crane.model}</span>
         <span className="pill">
-          {state.counterweight}t · {state.boom_length}m · %{state.capacity_pct}
+          {state.lift_config !== "T"
+            ? `${state.counterweight}t · Bom ${state.boom_length}m · Jib ${state.jib_length}m@${state.jib_offset}°`
+            : `${state.counterweight}t · ${state.boom_length}m · %${state.capacity_pct}`}
         </span>
       </div>
 
@@ -297,7 +315,17 @@ export default function App() {
               <div style={{ padding: 24 }}>
                 <div className="error-box">⚠ {error}</div>
               </div>
-            ) : result && tab === "2d" ? (
+            ) : result && (tab === "2d" || tab === "3d") && !result.clearance ? (
+              <div style={{ padding: 24 }}>
+                <div className="error-box">
+                  🚧 Jib modunda ({result.lift_config === "TJ_TH" ? "Bom+Jib" : "Bom+Uzatma+Jib"},
+                  jib {state.jib_length}m, ofset {state.jib_offset}°) 2B/3B geometri ve klerens
+                  hesaplanmaz — broşürde jib mafsal geometrisi yoktur. Kapasite ve ayak
+                  reaksiyonu sağdaki panelde hesaplanır. Geometri için "⊕ Üstten" veya "🛰 Saha"
+                  görünümünü kullanın.
+                </div>
+              </div>
+            ) : result && tab === "2d" && result.clearance ? (
               <SideView2D
                 g={crane.geometry_constants}
                 clearance={result.clearance}
@@ -309,7 +337,7 @@ export default function App() {
                 obstacle_distance={state.obstacle_distance}
                 obstacle_width={state.obstacle_width}
               />
-            ) : result && tab === "3d" ? (
+            ) : result && tab === "3d" && result.clearance ? (
               <Crane3D
                 boomLength={state.boom_length}
                 radius={state.radius}
@@ -394,8 +422,10 @@ export default function App() {
         <span className="sb-sep">·</span>
         {result && <span className="sb-item">Kapasite %{result.capacity.utilization_pct.toFixed(1)}</span>}
         <span className="sb-sep">·</span>
-        {result && (
+        {result && result.clearance ? (
           <span className="sb-item">Yük klerensi {result.clearance.clearance_to_load.toFixed(2)}m</span>
+        ) : (
+          result && <span className="sb-item">Jib modu (klerens N/A)</span>
         )}
         <span className="sb-sep">·</span>
         <span className="sb-item">{state.objects.length} çevre nesnesi</span>

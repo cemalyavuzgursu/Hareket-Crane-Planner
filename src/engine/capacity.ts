@@ -1,7 +1,7 @@
 // (A) KAPASİTE KONTROLÜ — load_chart_lookup + doğrusal interpolasyon.
 // PROJE.md §2(A). Excel'in VLOOKUP yapısı yerine temiz veri modeli + interpolasyon.
 
-import type { ChartPoint, CraneModel } from "./types.js";
+import type { ChartPoint, CraneModel, LiftConfig } from "./types.js";
 
 export interface CapacityResult {
   total_load: number; // toplam yük (t)
@@ -16,6 +16,24 @@ function key(n: number): string {
 }
 
 /**
+ * Sayısal anahtar araması. Önce birebir String(n) dener; bulunamazsa
+ * sayısal eşitlikle eşleşen anahtarı bulur ("55.0" vs "55", "75.0" vs "75"
+ * gibi JSON/JS String() farklarını tolere eder).
+ */
+function pickByNumber<T>(
+  obj: Record<string, T> | undefined,
+  n: number,
+): T | undefined {
+  if (!obj) return undefined;
+  const direct = obj[key(n)];
+  if (direct !== undefined) return direct;
+  for (const k of Object.keys(obj)) {
+    if (Math.abs(parseFloat(k) - n) < 1e-9) return obj[k];
+  }
+  return undefined;
+}
+
+/**
  * Verilen (counterweight, capacity_pct, boom_length) için kapasite eğrisini bulur.
  * boom_length/counterweight tam eşleşmelidir (eğri seçimi); radius interpole edilir.
  */
@@ -25,19 +43,19 @@ export function getCapacityCurve(
   capacity_pct: number,
   boom_length: number,
 ): ChartPoint[] {
-  const cw = crane.load_chart[key(counterweight)];
+  const cw = pickByNumber(crane.load_chart, counterweight);
   if (!cw) {
     throw new Error(
       `Load chart: denge ağırlığı tablosu yok: ${counterweight}t (mevcut: ${Object.keys(crane.load_chart).join(", ")})`,
     );
   }
-  const pct = cw[key(capacity_pct)];
+  const pct = pickByNumber(cw, capacity_pct);
   if (!pct) {
     throw new Error(
       `Load chart: kapasite yüzdesi tablosu yok: %${capacity_pct} (denge ${counterweight}t için mevcut: ${Object.keys(cw).join(", ")})`,
     );
   }
-  const curve = pct[key(boom_length)];
+  const curve = pickByNumber(pct, boom_length);
   if (!curve || curve.length === 0) {
     throw new Error(
       `Load chart: bom uzunluğu eğrisi yok: ${boom_length}m (denge ${counterweight}t, %${capacity_pct} için mevcut: ${Object.keys(pct).join(", ")})`,
@@ -85,6 +103,89 @@ export function loadChartLookup(
 ): number {
   const curve = getCapacityCurve(crane, counterweight, capacity_pct, boom_length);
   return interpolateCapacity(curve, radius);
+}
+
+/**
+ * Jib (副臂) kapasite eğrisini bulur.
+ * jib_charts[config][jib_length][boom_length][offset_deg] içinden eğri seçer.
+ * boom/jib/offset tam eşleşmeli; radius interpole edilir.
+ */
+export function getJibCapacityCurve(
+  crane: CraneModel,
+  config: LiftConfig,
+  jib_length: number,
+  boom_length: number,
+  jib_offset: number,
+): ChartPoint[] {
+  if (!crane.jib_charts) {
+    throw new Error("Bu vinçte jib yük tablosu yok.");
+  }
+  const cfg = crane.jib_charts[config];
+  if (!cfg) {
+    throw new Error(
+      `Jib tablosu yok: ${config} (mevcut: ${Object.keys(crane.jib_charts).join(", ")})`,
+    );
+  }
+  const jl = pickByNumber(cfg, jib_length);
+  if (!jl) {
+    throw new Error(
+      `Jib uzunluğu tablosu yok: ${jib_length}m (${config} için mevcut: ${Object.keys(cfg).join(", ")})`,
+    );
+  }
+  const bl = pickByNumber(jl, boom_length);
+  if (!bl) {
+    throw new Error(
+      `Jib için bom uzunluğu tablosu yok: ${boom_length}m (${config} ${jib_length}m için mevcut: ${Object.keys(jl).join(", ")})`,
+    );
+  }
+  const curve = pickByNumber(bl, jib_offset);
+  if (!curve || curve.length === 0) {
+    throw new Error(
+      `Jib ofset açısı eğrisi yok: ${jib_offset}° (${config} ${jib_length}m bom ${boom_length}m için mevcut: ${Object.keys(bl).join(", ")})`,
+    );
+  }
+  return curve;
+}
+
+/** Jib kapasite lookup: eğri seç + radius interpole et. */
+export function jibChartLookup(
+  crane: CraneModel,
+  config: LiftConfig,
+  jib_length: number,
+  boom_length: number,
+  jib_offset: number,
+  radius: number,
+): number {
+  const curve = getJibCapacityCurve(crane, config, jib_length, boom_length, jib_offset);
+  return interpolateCapacity(curve, radius);
+}
+
+/** Jib modu kapasite kontrolü (kapasite yapısını T modu ile aynı döner). */
+export function computeJibCapacity(
+  crane: CraneModel,
+  inp: {
+    load_weight: number;
+    hook_weight: number;
+    rigging_weight: number;
+    config: LiftConfig;
+    jib_length: number;
+    boom_length: number;
+    jib_offset: number;
+    radius: number;
+  },
+): CapacityResult {
+  const total_load = inp.load_weight + inp.hook_weight + inp.rigging_weight;
+  const rated_capacity = jibChartLookup(
+    crane,
+    inp.config,
+    inp.jib_length,
+    inp.boom_length,
+    inp.jib_offset,
+    inp.radius,
+  );
+  const utilization_pct = (total_load / rated_capacity) * 100;
+  const status = utilization_pct > 100 ? "KAPASİTE AŞIMI" : "UYGUN";
+  return { total_load, rated_capacity, utilization_pct, status };
 }
 
 /** (A) Kapasite kontrolü — PROJE.md formülleri. */

@@ -25,6 +25,7 @@ const inputs: LiftInputs = {
 
 describe("GOLDEN TEST 2 — LTM 1160", () => {
   const { capacity, clearance } = computeLift(crane, inputs);
+  if (!clearance) throw new Error("T modunda klerens null olmamalı");
 
   const cases: Array<[string, number, number]> = [
     ["total_load", capacity.total_load, 96.7],

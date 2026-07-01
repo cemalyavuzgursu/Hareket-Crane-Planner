@@ -65,7 +65,11 @@ export function generateReport(
   doc.setTextColor(20);
   doc.setFontSize(9);
   doc.text(tr(`Vinç: ${crane.model}`), L, y);
-  doc.text(tr(`Denge: ${state.counterweight}t   Bom: ${state.boom_length}m   Kapasite: %${state.capacity_pct}`), R, y, { align: "right" });
+  const cfgText =
+    result.jib
+      ? `Denge: ${state.counterweight}t   Bom: ${state.boom_length}m   Jib: ${result.jib.jib_length}m @ ${result.jib.jib_offset} derece`
+      : `Denge: ${state.counterweight}t   Bom: ${state.boom_length}m   Kapasite: %${state.capacity_pct}`;
+  doc.text(tr(cfgText), R, y, { align: "right" });
   y += 6;
   line();
 
@@ -84,13 +88,19 @@ export function generateReport(
   row("Durum", capacity.status, capacity.status === "KAPASİTE AŞIMI");
   line();
 
-  h("Klerens / Geometri");
-  row("Maks koca yuksekligi", `${clearance.max_hook_height.toFixed(3)} m`);
-  row("Maks sapan araligi", `${clearance.max_sling_spread.toFixed(3)} m`);
-  row("Boma engel klerensi", `${clearance.clearance_to_obstacle.toFixed(3)} m`, clearance.clearance_to_obstacle < 0);
-  row("Boma yuk klerensi", `${clearance.clearance_to_load.toFixed(3)} m`, clearance.clearance_to_load < 0);
-  row("Bom acisi (gama)", `${((clearance.gama * 180) / Math.PI).toFixed(2)} derece`);
-  line();
+  if (clearance) {
+    h("Klerens / Geometri");
+    row("Maks koca yuksekligi", `${clearance.max_hook_height.toFixed(3)} m`);
+    row("Maks sapan araligi", `${clearance.max_sling_spread.toFixed(3)} m`);
+    row("Boma engel klerensi", `${clearance.clearance_to_obstacle.toFixed(3)} m`, clearance.clearance_to_obstacle < 0);
+    row("Boma yuk klerensi", `${clearance.clearance_to_load.toFixed(3)} m`, clearance.clearance_to_load < 0);
+    row("Bom acisi (gama)", `${((clearance.gama * 180) / Math.PI).toFixed(2)} derece`);
+    line();
+  } else {
+    h("Klerens / Geometri");
+    row("Jib modu", "Klerens/geometri hesaplanmaz (jib mafsal geometrisi yok)", true);
+    line();
+  }
 
   h("Ayak Reaksiyonu (Outrigger)");
   if (outrigger) {
@@ -260,6 +270,10 @@ function drawStepDetail(doc: jsPDF, step: WorkStep, index: number): void {
     outrigger_config: cfg.outrigger_config,
     slew_angle: cfg.slew_angle,
     objects: cfg.objects,
+    jib:
+      cfg.lift_config !== "T"
+        ? { config: cfg.lift_config, jib_length: cfg.jib_length, jib_offset: cfg.jib_offset }
+        : undefined,
   });
   const { capacity, clearance, outrigger, collision } = result;
 
@@ -296,10 +310,10 @@ function drawStepDetail(doc: jsPDF, step: WorkStep, index: number): void {
   doc.setFont("helvetica", "normal");
   doc.setFontSize(9);
   doc.setTextColor(60);
-  doc.text(
-    tr(`${crane.model}  ·  Denge ${cfg.counterweight}t  ·  Bom ${cfg.boom_length}m  ·  %${cfg.capacity_pct}  ·  Donme ${cfg.slew_angle}°`),
-    L, y,
-  );
+  const stepCfgText = result.jib
+    ? `${crane.model}  ·  Denge ${cfg.counterweight}t  ·  Bom ${cfg.boom_length}m  ·  Jib ${result.jib.jib_length}m@${result.jib.jib_offset}°  ·  Donme ${cfg.slew_angle}°`
+    : `${crane.model}  ·  Denge ${cfg.counterweight}t  ·  Bom ${cfg.boom_length}m  ·  %${cfg.capacity_pct}  ·  Donme ${cfg.slew_angle}°`;
+  doc.text(tr(stepCfgText), L, y);
   y += 6;
   line();
 
@@ -310,11 +324,17 @@ function drawStepDetail(doc: jsPDF, step: WorkStep, index: number): void {
   row("Durum", capacity.status, capacity.status === "KAPASİTE AŞIMI");
   line();
 
-  h("Klerens / Geometri");
-  row("Boma engel klerensi", `${clearance.clearance_to_obstacle.toFixed(2)} m`, clearance.clearance_to_obstacle < 0);
-  row("Boma yuk klerensi", `${clearance.clearance_to_load.toFixed(2)} m`, clearance.clearance_to_load < 0);
-  row("Maks koca yuksekligi", `${clearance.max_hook_height.toFixed(2)} m`);
-  line();
+  if (clearance) {
+    h("Klerens / Geometri");
+    row("Boma engel klerensi", `${clearance.clearance_to_obstacle.toFixed(2)} m`, clearance.clearance_to_obstacle < 0);
+    row("Boma yuk klerensi", `${clearance.clearance_to_load.toFixed(2)} m`, clearance.clearance_to_load < 0);
+    row("Maks koca yuksekligi", `${clearance.max_hook_height.toFixed(2)} m`);
+    line();
+  } else {
+    h("Klerens / Geometri");
+    row("Jib modu", "Klerens hesaplanmaz", true);
+    line();
+  }
 
   h("Ayak Reaksiyonu");
   if (outrigger) {

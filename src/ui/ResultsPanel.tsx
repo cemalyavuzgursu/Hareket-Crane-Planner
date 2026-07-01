@@ -59,8 +59,8 @@ export default function ResultsPanel({ result, state, onPdf }: Props) {
   const { capacity, clearance, outrigger, collision } = result;
   const over = capacity.status === "KAPASİTE AŞIMI";
 
-  const obsBad = clearance.clearance_to_obstacle < 0;
-  const loadBad = clearance.clearance_to_load < 0;
+  const obsBad = !!clearance && clearance.clearance_to_obstacle < 0;
+  const loadBad = !!clearance && clearance.clearance_to_load < 0;
   const anyClearanceBad = obsBad || loadBad;
 
   // İstenen dönme açısındaki köşe yükleri (mevcut yönelim)
@@ -87,6 +87,31 @@ export default function ResultsPanel({ result, state, onPdf }: Props) {
         </div>
       </div>
 
+      {result.jib && (
+        <div className="card">
+          <h3>Jib Konfigürasyonu</h3>
+          <div className="kv">
+            <span className="k">Konfigürasyon</span>
+            <span className="v">
+              {result.lift_config === "TJ_TH" ? "Bom + Jib" : "Bom + Uzatma + Jib"}
+            </span>
+          </div>
+          <div className="kv">
+            <span className="k">Jib Uzunluğu</span>
+            <span className="v">{result.jib.jib_length} <small>m</small></span>
+          </div>
+          <div className="kv">
+            <span className="k">Jib Ofset Açısı</span>
+            <span className="v">{result.jib.jib_offset} <small>°</small></span>
+          </div>
+          <div className="banner" style={{ background: "rgba(255,186,32,.12)", border: "1px solid rgba(255,186,32,.45)", color: "#ffd479", marginBottom: 0 }}>
+            ⚠ Jib modu: klerens/çarpışma ve 2B/3B geometri hesaplanmaz (broşürde jib mafsal
+            geometrisi yok). Kapasite ve ayak reaksiyonu geçerlidir.
+          </div>
+        </div>
+      )}
+
+      {clearance && (<>
       <div className="card">
         <h3>Bölgesel Mesafeler (Klerens)</h3>
         <div className="kv">
@@ -148,6 +173,7 @@ export default function ResultsPanel({ result, state, onPdf }: Props) {
           <span className="v">{((clearance.gama * 180) / Math.PI).toFixed(1)} <small>°</small></span>
         </div>
       </div>
+      </>)}
 
       <div className="card">
         <h3>Ayak Reaksiyonu (Outrigger)</h3>

@@ -1,4 +1,4 @@
-import type { CraneModel, LiftInputs, SceneObject } from "../engine/types";
+import type { CraneModel, LiftConfig, LiftInputs, SceneObject } from "../engine/types";
 import type { CollisionSeverity } from "../engine/collision";
 
 /** UI'da tutulan tam girdi durumu (LiftInputs + ayak/dönme + vinç + çevre). */
@@ -6,6 +6,12 @@ export interface UIState extends LiftInputs {
   craneModel: string;
   outrigger_config: string;
   slew_angle: number;
+  /** Kaldırma konfigürasyonu: "T" = jibsiz ana bom, aksi halde jib modu. */
+  lift_config: LiftConfig;
+  /** Jib uzunluğu (m) — yalnız jib modunda kullanılır. */
+  jib_length: number;
+  /** Jib ofset açısı (°) — yalnız jib modunda kullanılır. */
+  jib_offset: number;
   /** Engel genişliği (m) — yalnızca çizim için; Excel hesabını etkilemez. */
   obstacle_width: number;
   /** Sahneye yerleştirilen çevre nesneleri (nesne kütüphanesi). */
@@ -47,9 +53,14 @@ export function defaultState(crane: CraneModel): UIState {
     counterweight: crane.counterweight_options.includes(40)
       ? 40
       : crane.counterweight_options[crane.counterweight_options.length - 1],
-    capacity_pct: 85,
+    capacity_pct: (crane.capacity_pct_options ?? [75, 85]).includes(85)
+      ? 85
+      : (crane.capacity_pct_options ?? [75, 85])[0],
     outrigger_config: crane.outrigger_configs[0],
     slew_angle: 270,
+    lift_config: "T",
+    jib_length: 0,
+    jib_offset: 0,
     obstacle_width: 2.5,
     objects: [],
   };

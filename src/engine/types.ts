@@ -23,16 +23,74 @@ export type LoadChart = Record<
   Record<string, Record<string, ChartPoint[]>>
 >;
 
+/** Jib kaldırma konfigürasyonu türü. "T" = jibsiz (yalnız ana bom). */
+export type LiftConfig = "T" | "TJ_TH" | "TEJ_TEH";
+
+/**
+ * Jib yük tabloları:
+ * jib_charts[config][jib_length][boom_length][offset_deg] = [[radius, capacity], ...]
+ * Tüm anahtarlar string'tir; değerler artan radius'a göre sıralı noktalardır.
+ * (SANY SAC2500E'de tüm jib tabloları 80t denge ağırlığındadır.)
+ */
+export type JibCharts = Record<
+  string,
+  Record<string, Record<string, Record<string, ChartPoint[]>>>
+>;
+
+/** Bir jib konfigürasyonunun UI meta bilgisi. */
+export interface JibConfigMeta {
+  key: LiftConfig;
+  label: string;
+  jib_lengths: number[];
+  boom_lengths: number[];
+  offsets: number[];
+  desc?: string;
+}
+
+/** Jib tablolarının genel meta bilgisi. */
+export interface JibConfigsMeta {
+  counterweight_required: number;
+  note?: string;
+  configs: JibConfigMeta[];
+}
+
+/** Yük tablosundaki üretici amblemi/işareti (ör. * = yalnız arka). */
+export interface OverRearNote {
+  symbol: string;
+  meaning: string;
+  points: Array<{
+    counterweight: number;
+    boom_length: number;
+    radius: number;
+    capacity: number;
+  }>;
+}
+
 /** Bir vinç modelinin tam veri tanımı (JSON şeması). */
 export interface CraneModel {
   model: string;
   source?: string;
   geometry_constants: GeometryConstants;
+  /** geometry_constants'ın kaynağı/güvenilirliği (ör. "TAHMİNİ ..."). */
+  geometry_source?: string;
   self_weight: number | null;
+  /**
+   * Kapasite modu seçenekleri. Liebherr/Excel vinçlerinde [75, 85]; SANY gibi
+   * tek 360° tablosu olan vinçlerde [100]. Verilmezse [75, 85] varsayılır.
+   */
+  capacity_pct_options?: number[];
   counterweight_options: number[];
   boom_lengths: number[];
   outrigger_configs: string[];
   notes?: string;
+  /** Yük tablosundaki üretici işaretleri/amblemleri (ör. * = yalnız arka). */
+  over_rear_notes?: OverRearNote[];
+  /** Jib (副臂) yük tabloları meta bilgisi (UI seçicileri için). */
+  jib_configs?: JibConfigsMeta;
+  /** Jib yük tabloları (config→jib_length→boom→offset→[[radius,cap]]). */
+  jib_charts?: JibCharts;
+  /** Broşür teknik özellik özeti (referans; hesaba girmez). */
+  datasheet_specs?: Record<string, unknown>;
   /** Eksik değerlerin alındığı ikame datasheet bilgisi (ör. Sany SAC2500E). */
   datasheet_substitute?: {
     source: string;
