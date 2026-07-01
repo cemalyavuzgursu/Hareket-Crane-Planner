@@ -9,7 +9,8 @@ import { Component, Suspense, useMemo, type ReactNode } from 'react';
 import { Canvas } from '@react-three/fiber';
 import { OrbitControls, Line, useGLTF } from '@react-three/drei';
 import { Box3, Vector3 } from 'three';
-import type { SceneObject, SceneObjectKind } from '../engine/types';
+import type { CraneDimensions, SceneObject, SceneObjectKind } from '../engine/types';
+import { jibGeometry } from './craneGeometry';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Props interface (verbatim from specification)
@@ -32,6 +33,8 @@ export interface Crane3DProps {
   objects?: SceneObject[];     // environment objects (nesne kütüphanesi)
   collidingIds?: string[];     // çakışan nesne id'leri → kırmızı tint
   loadDiameterReal?: number;   // gerçek yük çapı (sapan çizimi için)
+  dimensions?: CraneDimensions; // vinçe özgü gerçek ölçüler (SANY) → doğru şasi
+  jib?: { jib_length: number; jib_offset: number } | null; // jib modu → bom+jib çizimi
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -128,6 +131,8 @@ function CraneScene({
   clearanceWarning = false,
   objects = [],
   collidingIds = [],
+  dimensions,
+  jib = null,
 }: Crane3DProps) {
   // ── Sanitise inputs ────────────────────────────────────────────────────────
   const boomLen  = safePos(boomLenRaw, 10);
@@ -152,24 +157,49 @@ function CraneScene({
   const boomFootX = -boomOff;
   const boomFootY = machineH + crH;
 
-  const cosG = Math.cos(gama);
-  const sinG = Math.sin(gama);
+  // ── Jib modu: bom açısını jib ucu radius'a düşecek şekilde çöz ───────────────
+  const jibActive = !!jib && jib.jib_length > 0;
+  const jg = jibActive
+    ? jibGeometry(boomOff, boomFootY, boomLen, jib!.jib_length, jib!.jib_offset, radius)
+    : null;
+  const boomAngle = jg ? jg.boomAngle : gama;
 
-  // Tip = foot + boomLen × (cos gama, sin gama, 0)
-  const boomTipX = boomFootX + boomLen * cosG;
-  const boomTipY = boomFootY + boomLen * sinG;
+  const cosG = Math.cos(boomAngle);
+  const sinG = Math.sin(boomAngle);
+
+  // Tip = foot + boomLen × (cos, sin, 0)
+  const boomTipX = jg ? jg.boomTip.x : boomFootX + boomLen * cosG;
+  const boomTipY = jg ? jg.boomTip.y : boomFootY + boomLen * sinG;
+  // Jib ucu (yük burada asılı) — jib yoksa bom ucu.
+  const tipX = jg ? jg.jibTip.x : boomTipX;
+  const tipY = jg ? jg.jibTip.y : boomTipY;
+  // Jib yön/uzunluk (yerel bom çerçevesinde çizim için)
+  const jibLocalAngle = jg ? jg.jibAngle - boomAngle : 0; // bom eksenine göre
+  const jibLen = jibActive ? jib!.jib_length : 0;
 
   // ── Colours ────────────────────────────────────────────────────────────────
-  const boomColor = '#f59e0b';
+  const boomColor = clearanceWarning ? '#ef4444' : '#f59e0b';
   const loadColor = clearanceWarning ? '#ef4444' : '#64748b';
 
-  // ── Carrier / truck dimensions ─────────────────────────────────────────────
-  const truckLen = Lx * 0.6;
-  const truckW   = Ly * 0.5;
+  // ── Denge ağırlığı (SANY: kuyruk yarıçapında) ──────────────────────────────
+  const cwX = dimensions ? -(dimensions.tail_radius_m - 1.4) : -2.8;
+  const cwH = dimensions?.counterweight_height_m ?? 1.4;
+
+  // ── Carrier / truck dimensions (SANY: broşür ölçüleri) ─────────────────────
+  const truckLen = dimensions ? dimensions.carrier_length_m : Lx * 0.6;
+  const truckW   = dimensions ? dimensions.carrier_width_m : Ly * 0.5;
+  const carrierRearX = dimensions ? -dimensions.tail_radius_m - 0.6 : -truckLen / 2;
+  const carrierCenterX = carrierRearX + truckLen / 2;
+  const tireR = dimensions ? dimensions.tire_diameter_m / 2 : 0.85;
+  const deckY = dimensions?.deck_height_m ?? 1.5;
+  // Aks x konumları (slew merkezine göre). Broşür: ön uçtan; carrierFront = carrierRearX+len.
+  const axleXsWorld = dimensions?.axle_positions_m
+    ? dimensions.axle_positions_m.map((p) => carrierRearX + truckLen - p)
+    : [-0.4, -0.22, 0.16, 0.32, 0.46].map((f) => f * truckLen);
 
   // ── Hoist rope endpoints (in slew-local space) ─────────────────────────────
-  // Rope hangs from boom tip down to the top of the load.
-  const ropeStart: [number, number, number] = [boomTipX, boomTipY, 0];
+  // Rope hangs from boom/jib tip down to the top of the load.
+  const ropeStart: [number, number, number] = [tipX, tipY, 0];
   const ropeEnd:   [number, number, number] = [radius, loadH, 0];
 
   // ── Outrigger corner positions ─────────────────────────────────────────────
@@ -180,8 +210,9 @@ function CraneScene({
     [-Lx / 2, -Ly / 2],
   ];
 
-  // OrbitControls target: mid-height between ground and ~1/4 of boom tip height
-  const targetY = Math.max(boomTipY * 0.4, 4);
+  // OrbitControls target: yapının orta yüksekliği (dik jib bomlarında yükselir)
+  const topExtent = Math.max(boomTipY, tipY);
+  const targetY = Math.min(Math.max(topExtent * 0.5, 5), 55);
 
   // ── Sapan (sling) hatları: kanca → yük üst köşeleri ──────────────────────────
   const hookPt: [number, number, number] = [radius, loadH + 0.65, 0];
@@ -222,24 +253,24 @@ function CraneScene({
       <gridHelper args={[200, 100, '#334155', '#1e293b']} position={[0, 0, 0]} />
 
       {/* ── Carrier truck body ───────────────────────────────────────────── */}
-      <mesh position={[0, 1.05, 0]}>
-        <boxGeometry args={[truckLen, 0.9, truckW * 0.92]} />
+      <mesh position={[carrierCenterX, deckY - 0.55, 0]}>
+        <boxGeometry args={[truckLen, 1.1, truckW * 0.92]} />
         <meshStandardMaterial color="#1e3a5f" metalness={0.3} roughness={0.7} />
       </mesh>
-      {/* Operatör kabini (ön, +X) */}
-      <mesh position={[truckLen / 2 - 0.6, 2.0, truckW * 0.28]}>
-        <boxGeometry args={[1.6, 1.3, 1.5]} />
+      {/* Operatör kabini (ön, +X ucu) */}
+      <mesh position={[carrierRearX + truckLen - 1.3, deckY + 0.55, truckW * 0.28]}>
+        <boxGeometry args={[1.9, (dimensions?.cab_height_m ?? 3.6) - deckY, 1.6]} />
         <meshStandardMaterial color="#16344e" metalness={0.2} roughness={0.6} />
       </mesh>
-      {/* Tekerlekler (5 aks, iki yan) */}
-      {[-0.4, -0.22, 0.16, 0.32, 0.46].map((fx, i) =>
+      {/* Tekerlekler (broşür: aks konumları, iki yan) */}
+      {axleXsWorld.map((ax, i) =>
         [1, -1].map((sz) => (
           <mesh
             key={`${i}-${sz}`}
-            position={[fx * truckLen, 0.85, (sz * truckW) / 2]}
+            position={[ax, tireR, (sz * truckW) / 2]}
             rotation={[Math.PI / 2, 0, 0]}
           >
-            <cylinderGeometry args={[0.85, 0.85, 0.5, 18]} />
+            <cylinderGeometry args={[tireR, tireR, 0.5, 18]} />
             <meshStandardMaterial color="#0f1c2c" metalness={0.1} roughness={0.9} />
           </mesh>
         )),
@@ -265,8 +296,11 @@ function CraneScene({
         </mesh>
       ))}
 
-      {/* ── Slewing superstructure (rotated about Y by slewRad) ─────────── */}
-      <group rotation={[0, slewRad, 0]}>
+      {/* ── Slewing superstructure ────────────────────────────────────────
+          Motor konvansiyonu: slew a → dünya (x=r·cosa, z=r·sina) (collision.ts,
+          SitePlan, GroundForceDiagram ile aynı). three.js'te rotation.y=+a yerel
+          +X'i (cosa, −sina)'ya götürür (ayna); bu yüzden negatif uygulanır. */}
+      <group rotation={[0, -slewRad, 0]}>
 
         {/* Superstructure platform */}
         <mesh position={[0, boomFootY + 0.15, 0]}>
@@ -274,9 +308,9 @@ function CraneScene({
           <meshStandardMaterial color="#1e3a5f" />
         </mesh>
 
-        {/* Counterweight — at the rear (−X) of the superstructure */}
-        <mesh position={[-2.8, boomFootY + 0.9, 0]}>
-          <boxGeometry args={[2.2, 1.4, 1.8]} />
+        {/* Counterweight — at the rear (−X); SANY: kuyruk yarıçapında */}
+        <mesh position={[cwX, boomFootY + cwH / 2, 0]}>
+          <boxGeometry args={[dimensions ? 2.6 : 2.2, cwH, dimensions ? 2.6 : 1.8]} />
           <meshStandardMaterial color="#374151" />
         </mesh>
 
@@ -285,7 +319,7 @@ function CraneScene({
             İç içe geçmiş 3 bölüm (kesit + yükseklik gittikçe incelir) →
             teleskopik kol görünümü. Yerel +X bom ekseni boyunca uzar.
         ─────────────────────────────────────────────────────────────────── */}
-        <group position={[boomFootX, boomFootY, 0]} rotation={[0, 0, gama]}>
+        <group position={[boomFootX, boomFootY, 0]} rotation={[0, 0, boomAngle]}>
           {[
             { c: 0.78, w: 0.0, l: 0.42 },
             { c: 0.60, w: 0.40, l: 0.40 },
@@ -306,6 +340,20 @@ function CraneScene({
             <cylinderGeometry args={[0.4, 0.4, 0.5, 14]} />
             <meshStandardMaterial color="#2b3645" metalness={0.4} roughness={0.5} />
           </mesh>
+          {/* ── JİB (bom ucundan, ofset açısıyla aşağı) ─────────────────── */}
+          {jibActive && (
+            <group position={[boomLen, 0, 0]} rotation={[0, 0, jibLocalAngle]}>
+              <mesh position={[jibLen / 2, 0, 0]}>
+                <boxGeometry args={[jibLen, 0.42, 0.42]} />
+                <meshStandardMaterial color="#38bdf8" metalness={0.3} roughness={0.5} />
+              </mesh>
+              {/* Jib ucu makara */}
+              <mesh position={[jibLen, 0, 0]} rotation={[Math.PI / 2, 0, 0]}>
+                <cylinderGeometry args={[0.32, 0.32, 0.42, 12]} />
+                <meshStandardMaterial color="#2b3645" metalness={0.4} roughness={0.5} />
+              </mesh>
+            </group>
+          )}
         </group>
 
         {/* Kanca bloğu (yük üstünde) */}
@@ -405,11 +453,15 @@ function CraneScene({
 // Default export — wraps scene in a Canvas that fills its parent
 // ─────────────────────────────────────────────────────────────────────────────
 export default function Crane3D(props: Crane3DProps) {
-  // Scale initial camera distance to the crane's approximate envelope
+  // Scale initial camera distance to the crane's approximate envelope.
+  // Jib modunda bom neredeyse dikey (yükseklik ≈ boomLength) → kamerayı yukarı al.
   const safeBL = safePos(props.boomLength, 20);
   const safeR  = safePos(props.radius,     10);
-  const span   = Math.max(safeBL, safeR * 1.5, 14) * 1.35;
-  const camPos: [number, number, number] = [span * 0.9, span * 0.7, span * 1.05];
+  const jibTall = !!props.jib && props.jib.jib_length > 0;
+  const span   = Math.max(safeBL, safeR * 1.5, 14) * (jibTall ? 1.55 : 1.35);
+  const camPos: [number, number, number] = jibTall
+    ? [span * 0.75, span * 0.95, span * 1.0]
+    : [span * 0.9, span * 0.7, span * 1.05];
 
   return (
     <Canvas

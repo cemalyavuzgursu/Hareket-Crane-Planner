@@ -1,0 +1,9 @@
+# Expo / RN
+node_modules/
+.expo/
+dist/
+web-build/
+*.log
+
+# Paylaşılan engine — build sırasında sync-shared.mjs ile üretilir (tek kaynak: ../src)
+src/shared/

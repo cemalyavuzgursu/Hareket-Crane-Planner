@@ -30,14 +30,20 @@ export default function SideView2D(props: SideView2DProps) {
   const tip = { x: foot.x + boom_length * ux, y: foot.y + boom_length * uy };
   const loadX = radius;
   const obstacleX = radius - obstacle_distance;
+  // clearance.ts (Excel) konvansiyonu: kanca yükün UZAK kenarında (x=radius),
+  // kritik iç köşe (radius−load_diameter); yük engel ÜSTÜNDEN geçirilir
+  // (üst köşe y = obstacle_height + load_height). Çizim hesapla birebir olsun.
+  const loadL = radius - load_diameter;
+  const loadBot = obstacle_height;
+  const loadTop = obstacle_height + load_height;
   const warn = clearance.clearance_to_load < 0 || clearance.clearance_to_obstacle < 0;
 
   // Dünya sınırları → ekran
   const span = Math.max(radius, tip.x) + Math.max(load_diameter, 3);
-  const minX = -g.boom_offset - 4;
+  const minX = Math.min(-g.boom_offset - 4, loadL - 2);
   const maxX = span + 2;
   const minY = 0;
-  const maxY = Math.max(tip.y, clearance.max_hook_height, obstacle_height, load_height) + 3;
+  const maxY = Math.max(tip.y, clearance.max_hook_height, obstacle_height, loadTop) + 3;
 
   const W = 820, H = 500, padL = 50, padR = 70, padT = 24, padB = 56;
   const s = Math.min((W - padL - padR) / (maxX - minX), (H - padT - padB) / (maxY - minY));
@@ -150,20 +156,20 @@ export default function SideView2D(props: SideView2DProps) {
 
       {/* Bom ucu makara + kanca bloğu */}
       <circle cx={X(tip.x)} cy={Y(tip.y)} r={3.5} fill="#0c1f38" stroke={boomStroke} strokeWidth={1.5} />
-      <line x1={X(tip.x)} y1={Y(tip.y)} x2={X(loadX)} y2={Y(load_height + 1.0)} stroke={steel} strokeWidth={1.3} />
+      <line x1={X(tip.x)} y1={Y(tip.y)} x2={X(loadX)} y2={Y(loadTop + 1.0)} stroke={steel} strokeWidth={1.3} />
       {/* Kanca bloğu */}
-      <rect x={X(loadX) - 5} y={Y(load_height + 1.0)} width={10} height={11} rx={2} fill="#16314b" stroke={steel} strokeWidth={1.2} />
-      <path d={`M ${X(loadX)} ${Y(load_height + 1.0) + 11} q 5 4 0 8 q -5 -4 0 -8`} fill="none" stroke={steel} strokeWidth={1.3} />
+      <rect x={X(loadX) - 5} y={Y(loadTop + 1.0)} width={10} height={11} rx={2} fill="#16314b" stroke={steel} strokeWidth={1.2} />
+      <path d={`M ${X(loadX)} ${Y(loadTop + 1.0) + 11} q 5 4 0 8 q -5 -4 0 -8`} fill="none" stroke={steel} strokeWidth={1.3} />
 
       {/* ===== YÜK + spreader ===== */}
-      {/* Spreader bar (kaldırma çerçevesi) */}
-      <line x1={X(loadX)} y1={Y(load_height + 0.55)} x2={X(loadX - load_diameter / 2 + 0.3)} y2={Y(load_height)} stroke={steel} strokeWidth={1.2} />
-      <line x1={X(loadX)} y1={Y(load_height + 0.55)} x2={X(loadX + load_diameter / 2 - 0.3)} y2={Y(load_height)} stroke={steel} strokeWidth={1.2} />
-      <rect x={X(loadX - load_diameter / 2)} y={Y(load_height)} width={X(load_diameter) - X(0)} height={gnd - Y(load_height)}
+      {/* Spreader bar (kaldırma çerçevesi) — kanca uzak kenar üstünde */}
+      <line x1={X(loadX)} y1={Y(loadTop + 0.55)} x2={X(loadL + 0.3)} y2={Y(loadTop)} stroke={steel} strokeWidth={1.2} />
+      <line x1={X(loadX)} y1={Y(loadTop + 0.55)} x2={X(loadX - 0.3)} y2={Y(loadTop)} stroke={steel} strokeWidth={1.2} />
+      <rect x={X(loadL)} y={Y(loadTop)} width={X(load_diameter) - X(0)} height={Y(loadBot) - Y(loadTop)}
         rx={2} fill={warn ? "rgba(255,90,77,.16)" : "rgba(110,134,166,.18)"} stroke={warn ? "#ff5a4d" : steel} strokeWidth={1.6} />
-      <line x1={X(loadX - load_diameter / 2)} y1={Y(load_height)} x2={X(loadX + load_diameter / 2)} y2={gnd} stroke={steelDim} strokeWidth={0.8} opacity={0.5} />
-      <line x1={X(loadX + load_diameter / 2)} y1={Y(load_height)} x2={X(loadX - load_diameter / 2)} y2={gnd} stroke={steelDim} strokeWidth={0.8} opacity={0.5} />
-      <text x={X(loadX)} y={(Y(load_height) + gnd) / 2 + 4} fill="#dbe6f2" fontSize={11} textAnchor="middle" fontWeight={600}>YÜK</text>
+      <line x1={X(loadL)} y1={Y(loadTop)} x2={X(loadX)} y2={Y(loadBot)} stroke={steelDim} strokeWidth={0.8} opacity={0.5} />
+      <line x1={X(loadX)} y1={Y(loadTop)} x2={X(loadL)} y2={Y(loadBot)} stroke={steelDim} strokeWidth={0.8} opacity={0.5} />
+      <text x={X(loadX - load_diameter / 2)} y={(Y(loadTop) + Y(loadBot)) / 2 + 4} fill="#dbe6f2" fontSize={11} textAnchor="middle" fontWeight={600}>YÜK</text>
 
       {/* ===== ENGEL (bina) ===== */}
       {obstacle_height > 0 && (() => {
@@ -201,7 +207,7 @@ export default function SideView2D(props: SideView2DProps) {
       {/* Radius ölçüsü (zeminde) */}
       <line x1={X(0)} y1={gnd + 22} x2={X(radius)} y2={gnd + 22} stroke={dim} strokeWidth={1} markerEnd="url(#ah)" markerStart="url(#ah)" />
       <line x1={X(0)} y1={gnd} x2={X(0)} y2={gnd + 26} stroke={dim} strokeWidth={0.8} strokeDasharray="3 3" />
-      <line x1={X(radius)} y1={Y(load_height)} x2={X(radius)} y2={gnd + 26} stroke={dim} strokeWidth={0.8} strokeDasharray="3 3" />
+      <line x1={X(radius)} y1={Y(loadTop)} x2={X(radius)} y2={gnd + 26} stroke={dim} strokeWidth={0.8} strokeDasharray="3 3" />
       <text x={(X(0) + X(radius)) / 2} y={gnd + 36} fill={dimText} fontSize={10.5} textAnchor="middle">RADIUS {radius.toFixed(1)} m</text>
 
       {/* Maks koça yüksekliği (sağ dikey ölçü) */}

@@ -264,10 +264,14 @@ export default function GroundForceDiagram(props: GroundForceDiagramProps): JSX.
         <span
           style={{
             fontWeight: 700,
-            color: cogOutside ? "var(--red)" : "var(--green)",
+            color: cogOutside || props.atAngle?.tipping ? "var(--red)" : props.atAngle?.uplift ? "var(--accent)" : "var(--green)",
           }}
         >
-          {cogOutside ? "⚠ CoG ayak alanı dışında — DEVRİLME RİSKİ" : "✓ CoG ayak alanı içinde"}
+          {cogOutside || props.atAngle?.tipping
+            ? "⚠ CoG ayak alanı dışında — DEVRİLME RİSKİ"
+            : props.atAngle?.uplift
+              ? "⚠ Ayak kalkması — bir ayak yüksüz"
+              : "✓ CoG ayak alanı içinde"}
         </span>
       </div>
     </div>

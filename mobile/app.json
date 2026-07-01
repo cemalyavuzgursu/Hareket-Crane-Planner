@@ -1,0 +1,29 @@
+{
+  "expo": {
+    "name": "Hareket Crane Planner",
+    "slug": "hareket-crane-planner",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "dark",
+    "scheme": "hareketcrane",
+    "backgroundColor": "#0c0e11",
+    "splash": {
+      "resizeMode": "contain",
+      "backgroundColor": "#0c0e11"
+    },
+    "assetBundlePatterns": ["**/*"],
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.hareket.craneplanner"
+    },
+    "android": {
+      "package": "com.hareket.craneplanner",
+      "adaptiveIcon": {
+        "backgroundColor": "#0c0e11"
+      }
+    },
+    "extra": {
+      "note": "Saha personeli mobil uygulaması — 2D, ağırlık merkezi, çarpışma."
+    }
+  }
+}

@@ -19,8 +19,8 @@ export type CollisionSeverity = "ok" | "warning" | "collision";
 
 export interface CollisionItem {
   id: string;
-  /** Hangi vinç parçası: bom / yük / kanca. */
-  source: "boom" | "load" | "hook";
+  /** Hangi vinç parçası: bom / yük / kanca / kaldırma halatı. */
+  source: "boom" | "load" | "hook" | "rope";
   /** Neyle: ana engel, zemin, ya da çevre nesnesi etiketi. */
   target: string;
   severity: CollisionSeverity;
@@ -90,7 +90,8 @@ export function craneWorldGeometry(inp: CollisionInputs): {
     boomFoot: toWorld(footX, footY, 0, slewRad),
     boomTip: toWorld(tipXLocal, tipYLocal, 0, slewRad),
     loadCenter: toWorld(radius, Math.max(load_height, 0.1) / 2, 0, slewRad),
-    hookCenter: toWorld(radius, load_height + inp.hook_height, 0, slewRad),
+    // Kanca bloğu yük üstünden hook_height kadar yukarı uzanır; merkezi ortası.
+    hookCenter: toWorld(radius, load_height + inp.hook_height / 2, 0, slewRad),
   };
 }
 
@@ -183,6 +184,8 @@ export function computeCollisions(
   const geo = craneWorldGeometry(inp);
   const boomHalfThick = inp.g.boom_thickness / 2;
   const loadRadius = Math.max(inp.load_diameter, 0.3) / 2;
+  const HOOK_HALF = 0.3; // kanca bloğu yaklaşık yarı-ölçüsü (m)
+  const ROPE_HALF = 0.05; // halat yarıçap payı (m)
 
   for (const o of inp.objects) {
     const center: Vec3 = { x: o.x, y: o.height / 2, z: o.z };
@@ -208,6 +211,29 @@ export function computeCollisions(
       severity: severityFor(dLoad),
       clearance_m: dLoad,
       message: dLoad < 0 ? `Yük "${o.label}" ile çakışıyor` : `Yük ↔ ${o.label}`,
+    });
+
+    // Kanca bloğu (yük üstünde asılı) — özellikle enerji hattı gibi
+    // yükseklikteki tehlikeler için bom/yük kontrolünün kaçırdığı bölge.
+    const dHook = pointToBoxDistance(geo.hookCenter, center, half) - HOOK_HALF;
+    items.push({
+      id: `obj-${o.id}-hook`,
+      source: "hook",
+      target: o.label,
+      severity: severityFor(dHook),
+      clearance_m: dHook,
+      message: dHook < 0 ? `Kanca "${o.label}" ile çakışıyor` : `Kanca ↔ ${o.label}`,
+    });
+
+    // Kaldırma halatı (bom ucu → kanca, ~düşey doğru parçası)
+    const dRope = segmentToBoxDistance(geo.boomTip, geo.hookCenter, center, half) - ROPE_HALF;
+    items.push({
+      id: `obj-${o.id}-rope`,
+      source: "rope",
+      target: o.label,
+      severity: severityFor(dRope),
+      clearance_m: dRope,
+      message: dRope < 0 ? `Kaldırma halatı "${o.label}" ile çakışıyor` : `Halat ↔ ${o.label}`,
     });
   }
 

@@ -104,6 +104,20 @@ describe("SANY SAC2500E — jib yük tabloları (broşür hücreleri)", () => {
     expect(jibChartLookup(crane, "TJ_TH", 11.2, 56.1, 0, 15)).toBeCloseTo(14.6, 2);
   });
 
+  it("jib modunda yanlış denge ağırlığı reddedilir (tablo 80t için geçerli)", () => {
+    const inp = {
+      load_weight: 8, hook_weight: 1, rigging_weight: 0.5,
+      load_height: 0, load_diameter: 0, obstacle_height: 0, obstacle_distance: 0,
+      boom_length: 56.1, radius: 13, counterweight: 50.5, capacity_pct: 100,
+    };
+    expect(() =>
+      computeLiftFull(crane, inp, {
+        outrigger_config: "9x7,8", slew_angle: 180,
+        jib: { config: "TJ_TH", jib_length: 11.2, jib_offset: 0 },
+      }),
+    ).toThrow(/denge ağırlığı 80t/i);
+  });
+
   it("jib modunda computeLiftFull: kapasite jib tablosundan, klerens null", () => {
     const inp = {
       load_weight: 8, hook_weight: 1, rigging_weight: 0.5,

@@ -54,6 +54,28 @@ export interface JibConfigsMeta {
   configs: JibConfigMeta[];
 }
 
+/** Vinçe özgü fiziksel ölçüler (broşürden) — yandan/üstten çizim doğruluğu için. */
+export interface CraneDimensions {
+  source?: string;
+  carrier_length_m: number; // şasi toplam uzunluğu
+  carrier_width_m: number; // tekerlekler üzerinden genişlik
+  body_width_m?: number; // gövde genişliği
+  travel_height_m?: number; // taşıma yüksekliği (bom yatık)
+  ground_clearance_m?: number; // yerden yükseklik
+  deck_height_m?: number; // şasi üst güverte yüksekliği
+  axle_count: number; // aks sayısı
+  tire_diameter_m: number; // lastik dış çapı
+  wheelbase_front_m?: number; // ön aks öne mesafesi
+  axle_positions_m?: number[]; // ön uçtan aks x konumları
+  tail_radius_m: number; // kuyruk dönme yarıçapı
+  cab_height_m?: number; // kabin üst yüksekliği
+  boom_pivot_height_m: number; // bom mafsalı yerden yükseklik
+  boom_pivot_x_m: number; // bom mafsalı slew merkezine göre x (negatif = geride)
+  superstructure_deck_height_m?: number; // döner platform güvertesi
+  counterweight_height_m?: number; // denge bloğu yüksekliği
+  boom_stowed_length_m?: number; // bazik bom uzunluğu
+}
+
 /** Yük tablosundaki üretici amblemi/işareti (ör. * = yalnız arka). */
 export interface OverRearNote {
   symbol: string;
@@ -73,6 +95,8 @@ export interface CraneModel {
   geometry_constants: GeometryConstants;
   /** geometry_constants'ın kaynağı/güvenilirliği (ör. "TAHMİNİ ..."). */
   geometry_source?: string;
+  /** Fiziksel ölçüler (broşürden) — vinçe özgü doğru 2B/3B çizim için. */
+  dimensions?: CraneDimensions;
   self_weight: number | null;
   /**
    * Kapasite modu seçenekleri. Liebherr/Excel vinçlerinde [75, 85]; SANY gibi

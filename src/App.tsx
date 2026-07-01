@@ -6,6 +6,7 @@ import ConfigSidebar from "./ui/ConfigSidebar";
 import InputForm from "./ui/InputForm";
 import ResultsPanel from "./ui/ResultsPanel";
 import SideView2D from "./ui/SideView2D";
+import SanySideView2D from "./ui/SanySideView2D";
 import Crane3D from "./ui/Crane3D";
 import GroundForceDiagram from "./ui/GroundForceDiagram";
 import ObjectLibrary from "./ui/ObjectLibrary";
@@ -95,12 +96,19 @@ export default function App() {
   const warn =
     !!result && (result.collision.worst !== "ok" || result.capacity.status === "KAPASİTE AŞIMI");
 
+  // Vinçe özgü (SANY) doğru 2B/3B çizim + jib çizim parametreleri.
+  const isSany = !!crane.dimensions;
+  const jibDraw =
+    state.lift_config !== "T"
+      ? { jib_length: state.jib_length, jib_offset: state.jib_offset }
+      : null;
+
   const collidingIds = useMemo(() => {
     if (!result) return [];
     const ids = new Set<string>();
     for (const it of result.collision.items) {
       if (it.severity === "ok") continue;
-      const m = it.id.match(/^obj-(.+)-(boom|load)$/);
+      const m = it.id.match(/^obj-(.+)-(boom|load|hook|rope)$/);
       if (m) ids.add(m[1]);
     }
     return [...ids];
@@ -315,7 +323,7 @@ export default function App() {
               <div style={{ padding: 24 }}>
                 <div className="error-box">⚠ {error}</div>
               </div>
-            ) : result && (tab === "2d" || tab === "3d") && !result.clearance ? (
+            ) : result && (tab === "2d" || tab === "3d") && !result.clearance && !isSany ? (
               <div style={{ padding: 24 }}>
                 <div className="error-box">
                   🚧 Jib modunda ({result.lift_config === "TJ_TH" ? "Bom+Jib" : "Bom+Uzatma+Jib"},
@@ -325,6 +333,20 @@ export default function App() {
                   görünümünü kullanın.
                 </div>
               </div>
+            ) : result && tab === "2d" && isSany ? (
+              <SanySideView2D
+                dims={crane.dimensions!}
+                g={crane.geometry_constants}
+                clearance={result.clearance}
+                boom_length={state.boom_length}
+                radius={state.radius}
+                load_height={state.load_height}
+                load_diameter={state.load_diameter}
+                obstacle_height={state.obstacle_height}
+                obstacle_distance={state.obstacle_distance}
+                obstacle_width={state.obstacle_width}
+                jib={jibDraw}
+              />
             ) : result && tab === "2d" && result.clearance ? (
               <SideView2D
                 g={crane.geometry_constants}
@@ -337,14 +359,15 @@ export default function App() {
                 obstacle_distance={state.obstacle_distance}
                 obstacle_width={state.obstacle_width}
               />
-            ) : result && tab === "3d" && result.clearance ? (
+            ) : result && tab === "3d" && (result.clearance || isSany) ? (
               <Crane3D
+                key={`${state.craneModel}-${state.lift_config}-${Math.round(state.boom_length / 12)}`}
                 boomLength={state.boom_length}
                 radius={state.radius}
                 boomOffset={crane.geometry_constants.boom_offset}
                 machineGroundHeight={crane.geometry_constants.machine_ground_height}
                 cribbingHeight={crane.geometry_constants.cribbing_height}
-                gama={result.clearance.gama}
+                gama={result.clearance?.gama ?? Math.PI / 4}
                 slewAngleDeg={state.slew_angle}
                 loadHeight={state.load_height}
                 loadDiameter={state.load_diameter}
@@ -355,6 +378,8 @@ export default function App() {
                 clearanceWarning={warn}
                 objects={state.objects}
                 collidingIds={collidingIds}
+                dimensions={crane.dimensions}
+                jib={jibDraw}
               />
             ) : result && atAngle ? (
               <GroundForceDiagram

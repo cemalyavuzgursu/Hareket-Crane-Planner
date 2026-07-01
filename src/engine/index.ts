@@ -56,6 +56,15 @@ export function computeLift(
   jib?: JibParams,
 ): LiftResult {
   if (isJib(jib)) {
+    // Jib tabloları belirli bir denge ağırlığı için geçerlidir (ör. SANY 80t).
+    // Farklı denge ağırlığıyla bu tabloyu kullanmak kapasiteyi yanlış gösterir.
+    const reqCw = crane.jib_configs?.counterweight_required;
+    if (reqCw != null && Math.abs(inp.counterweight - reqCw) > 1e-9) {
+      throw new Error(
+        `Jib modunda denge ağırlığı ${reqCw}t olmalıdır (seçili: ${inp.counterweight}t). ` +
+          `Jib yük tabloları yalnızca ${reqCw}t denge ağırlığı için geçerlidir.`,
+      );
+    }
     const capacity = computeJibCapacity(crane, {
       load_weight: inp.load_weight,
       hook_weight: inp.hook_weight,

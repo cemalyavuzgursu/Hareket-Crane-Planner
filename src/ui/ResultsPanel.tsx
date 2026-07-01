@@ -55,6 +55,13 @@ const SEV_LABEL: Record<string, string> = {
   collision: "ÇARPIŞMA",
 };
 
+const SOURCE_TR: Record<string, string> = {
+  boom: "Bom",
+  load: "Yük",
+  hook: "Kanca",
+  rope: "Halat",
+};
+
 export default function ResultsPanel({ result, state, onPdf }: Props) {
   const { capacity, clearance, outrigger, collision } = result;
   const over = capacity.status === "KAPASİTE AŞIMI";
@@ -148,7 +155,7 @@ export default function ResultsPanel({ result, state, onPdf }: Props) {
           collision.active.map((c) => (
             <div className="kv" key={c.id}>
               <span className="k" style={{ fontSize: 12 }}>
-                {c.source} → {c.target}
+                {SOURCE_TR[c.source] ?? c.source} → {c.target}
               </span>
               <span className={`v ${c.severity === "collision" ? "bad" : "warn"}`} style={{ fontSize: 13 }}>
                 {c.clearance_m.toFixed(2)}<small>m</small> · {SEV_LABEL[c.severity]}
@@ -197,6 +204,13 @@ export default function ResultsPanel({ result, state, onPdf }: Props) {
               <div className="kv">
                 <span className="k">Maks Zemin Basıncı</span>
                 <span className="v warn">{outrigger.ground_pressure.toFixed(1)} <small>t/m²</small></span>
+              </div>
+            )}
+            {(outrigger.tipping_risk || outrigger.has_uplift) && (
+              <div className="banner bad" style={{ marginTop: 8, marginBottom: 0 }}>
+                {outrigger.tipping_risk
+                  ? "⛔ DEVRİLME RİSKİ — ağırlık merkezi destek alanı dışına çıkıyor"
+                  : "⚠ AYAK KALKMASI riski — bazı açılarda bir ayak yüksüz kalıyor"}
               </div>
             )}
             {atCurrent && (

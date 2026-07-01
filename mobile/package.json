@@ -1,0 +1,31 @@
+{
+  "name": "hareket-crane-planner-mobile",
+  "version": "0.1.0",
+  "description": "Hareket Crane Planner — saha personeli için mobil uygulama (Expo/React Native)",
+  "main": "node_modules/expo/AppEntry.js",
+  "scripts": {
+    "sync": "node scripts/sync-shared.mjs",
+    "prestart": "node scripts/sync-shared.mjs",
+    "start": "expo start",
+    "preandroid": "node scripts/sync-shared.mjs",
+    "android": "expo start --android",
+    "preios": "node scripts/sync-shared.mjs",
+    "ios": "expo start --ios",
+    "preexport": "node scripts/sync-shared.mjs",
+    "export": "expo export",
+    "pretypecheck": "node scripts/sync-shared.mjs",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "expo": "~51.0.28",
+    "expo-status-bar": "~1.12.1",
+    "react": "18.2.0",
+    "react-native": "0.74.5",
+    "react-native-svg": "15.2.0"
+  },
+  "devDependencies": {
+    "@types/react": "~18.2.45",
+    "typescript": "~5.3.3"
+  },
+  "private": true
+}

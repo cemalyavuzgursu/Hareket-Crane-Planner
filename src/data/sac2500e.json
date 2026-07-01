@@ -11,6 +11,32 @@
     "boom_thickness": 1.5
   },
   "geometry_source": "TAHMİNİ — 250t sınıfı AT vinç için makul değerler. Broşür bom-mafsalı geometrisini (offset/makara/kalınlık) vermez; klerens sonuçları yönlendiricidir, üretici geometrisiyle doğrulanmalıdır.",
+  "dimensions": {
+    "source": "Sany_crane-brochure_SAC2500E.pdf — Overall Dimensions (s.18) + Technical Specification. Yandan/üstten çizim için gerçek ölçüler.",
+    "carrier_length_m": 16.0,
+    "carrier_width_m": 3.0,
+    "body_width_m": 2.55,
+    "travel_height_m": 3.95,
+    "ground_clearance_m": 0.29,
+    "deck_height_m": 2.4,
+    "axle_count": 5,
+    "tire_diameter_m": 1.37,
+    "wheelbase_front_m": 1.99,
+    "axle_positions_m": [
+      3.0,
+      5.7,
+      8.45,
+      10.1,
+      12.6
+    ],
+    "tail_radius_m": 5.4,
+    "cab_height_m": 3.6,
+    "boom_pivot_height_m": 3.1,
+    "boom_pivot_x_m": -1.8,
+    "superstructure_deck_height_m": 2.6,
+    "counterweight_height_m": 2.8,
+    "boom_stowed_length_m": 13.9
+  },
   "self_weight": 60.0,
   "capacity_pct_options": [
     100

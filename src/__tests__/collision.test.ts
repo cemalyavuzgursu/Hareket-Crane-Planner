@@ -94,8 +94,48 @@ describe("çarpışma — çevre nesneleri (3D)", () => {
     const rep = computeCollisions(baseInputs([obj]), baseClearance());
     const boomHit = rep.items.find((i) => i.id === "obj-b2-boom")!;
     const loadHit = rep.items.find((i) => i.id === "obj-b2-load")!;
+    const hookHit = rep.items.find((i) => i.id === "obj-b2-hook")!;
+    const ropeHit = rep.items.find((i) => i.id === "obj-b2-rope")!;
     expect(boomHit.severity).toBe("ok");
     expect(loadHit.severity).toBe("ok");
+    expect(hookHit.severity).toBe("ok");
+    expect(ropeHit.severity).toBe("ok");
+  });
+
+  it("kanca/halat hizasındaki yüksek nesne halat çakışması üretir", () => {
+    // Halat bom ucundan (≈(8.95, 14.8)) kancaya ((9, 4.75)) düşer; x=9'da
+    // 12 m yüksek ince direk halatı keser (bom üstünden geçer: tepe 14.8 > 12).
+    const obj: SceneObject = {
+      id: "p1",
+      kind: "powerline",
+      label: "Direk",
+      x: 9,
+      z: 0,
+      width: 0.4,
+      depth: 0.4,
+      height: 12,
+    };
+    const rep = computeCollisions(baseInputs([obj]), baseClearance());
+    const ropeHit = rep.items.find((i) => i.id === "obj-p1-rope")!;
+    const hookHit = rep.items.find((i) => i.id === "obj-p1-hook")!;
+    expect(ropeHit.severity).toBe("collision");
+    expect(hookHit.severity).toBe("collision"); // kanca (9, 4.75) direğin içinde
+  });
+});
+
+describe("computeClearance — geometrik erişim koruması", () => {
+  it("erişilemez radius NaN yaymak yerine açık hata verir", () => {
+    // boom 16.5 m: z ≈ 16.56, maks radius ≈ z − boom_offset ≈ 13.2 m
+    expect(() =>
+      computeClearance(G, {
+        boom_length: 16.5,
+        radius: 14.5,
+        load_height: 0,
+        load_diameter: 0,
+        obstacle_height: 0,
+        obstacle_distance: 0,
+      }),
+    ).toThrow(/erişilemez/i);
   });
 });
 

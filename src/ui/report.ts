@@ -108,6 +108,8 @@ export function generateReport(
     row("En kritik kose yuku", `${outrigger.max_corner_load.toFixed(1)} t (${outrigger.max_corner_label})`);
     row("Kritik donme acisi", `${outrigger.critical_angle.toFixed(0)} derece`);
     if (outrigger.ground_pressure != null) row("Zemin basinci", `${outrigger.ground_pressure.toFixed(1)} t/m2`);
+    if (outrigger.tipping_risk) row("Stabilite", "DEVRILME RISKI (CoG destek alani disinda)", true);
+    else if (outrigger.has_uplift) row("Stabilite", "AYAK KALKMASI riski (bir ayak yuksuz)", true);
   } else {
     row("Durum", "Hesaplanamadi (self_weight eksik)", true);
   }
@@ -269,6 +271,7 @@ function drawStepDetail(doc: jsPDF, step: WorkStep, index: number): void {
   const result: FullLiftResult = computeLiftFull(crane, cfg, {
     outrigger_config: cfg.outrigger_config,
     slew_angle: cfg.slew_angle,
+    pad_area: 1.0, // App.PAD_AREA ile aynı — zemin basıncı tek adımlı raporla tutarlı
     objects: cfg.objects,
     jib:
       cfg.lift_config !== "T"
@@ -342,6 +345,8 @@ function drawStepDetail(doc: jsPDF, step: WorkStep, index: number): void {
     row("En kritik kose yuku", `${outrigger.max_corner_load.toFixed(1)} t (${outrigger.max_corner_label})`);
     row("Kritik donme acisi", `${outrigger.critical_angle.toFixed(0)} derece`);
     if (outrigger.ground_pressure != null) row("Zemin basinci", `${outrigger.ground_pressure.toFixed(1)} t/m2`);
+    if (outrigger.tipping_risk) row("Stabilite", "DEVRILME RISKI", true);
+    else if (outrigger.has_uplift) row("Stabilite", "AYAK KALKMASI riski", true);
   } else {
     row("Durum", "Hesaplanamadi", true);
   }

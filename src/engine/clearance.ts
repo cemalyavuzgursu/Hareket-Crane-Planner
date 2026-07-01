@@ -41,7 +41,15 @@ export function computeClearance(
 
   const alfa = Math.atan(g.sheave_offset / boom_length);
   const z = boom_length / Math.cos(alfa);
-  const gama = Math.acos((radius + g.boom_offset) / z); // bom yükselme açısı
+  // acos alan kontrolü: radius geometrik erişimi aşarsa NaN yayılmasın, açık hata ver.
+  const cosGama = (radius + g.boom_offset) / z;
+  if (cosGama > 1 + 1e-9) {
+    throw new Error(
+      `Radius ${radius}m bu bom uzunluğuyla (${boom_length}m) geometrik olarak erişilemez ` +
+        `(maks ≈ ${(z - g.boom_offset).toFixed(1)}m).`,
+    );
+  }
+  const gama = Math.acos(Math.min(cosGama, 1)); // bom yükselme açısı
 
   const max_hook_height =
     z * Math.sin(gama) +
