@@ -1,7 +1,14 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { CRANES, getCrane } from "./data/cranes";
 import { computeLiftFull, type FullLiftResult } from "./engine/index";
-import { defaultState, type UIState, type WorkStep, type StepSummary } from "./ui/state";
+import {
+  defaultProjectMeta,
+  defaultState,
+  type ProjectMeta,
+  type UIState,
+  type WorkStep,
+  type StepSummary,
+} from "./ui/state";
 import ConfigSidebar from "./ui/ConfigSidebar";
 import InputForm from "./ui/InputForm";
 import ResultsPanel from "./ui/ResultsPanel";
@@ -12,16 +19,43 @@ import GroundForceDiagram from "./ui/GroundForceDiagram";
 import ObjectLibrary from "./ui/ObjectLibrary";
 import StepsBar from "./ui/StepsBar";
 import SitePlan from "./ui/SitePlan";
+import ProjectMetaDialog from "./ui/ProjectMetaDialog";
 import { Section, SidePanel, Menu } from "./ui/shell";
 import { useUpdater } from "./ui/useUpdater";
 import UpdateBanner from "./ui/UpdateBanner";
+import { useUndoableState } from "./ui/useUndoableState";
+import {
+  downloadProjectFile,
+  hasDroppedModels,
+  loadAutosave,
+  saveAutosave,
+  tryParseProject,
+} from "./ui/persistence";
 import { generateReport, generateMultiStepReport } from "./ui/report";
 // Logo'yu modül olarak içe aktar → Vite paketleyip base'e göre göreli yol üretir,
 // böylece hem dev hem de paketlenmiş (file://) uygulamada doğru yüklenir.
 import logoW from "./assets/brand/logo_w.png";
 
-/** Ayak takozu (pad) temas alanı varsayımı (m²) — zemin basıncı için. */
-const PAD_AREA = 1.0;
+/** localStorage'daki autosave'i doğrular (vinç modeli hâlâ mevcut mu) ve
+ * ilk state/steps/meta üçlüsünü döndürür. Bozuk/eski/geçersiz veri → null (varsayılana dönülür). */
+function restoreFromAutosave(): {
+  state: UIState;
+  steps: WorkStep[];
+  meta: ProjectMeta;
+  droppedModels: boolean;
+} | null {
+  const data = loadAutosave();
+  if (!data) return null;
+  try {
+    getCrane(data.state.craneModel);
+  } catch {
+    return null;
+  }
+  const droppedModels =
+    hasDroppedModels(data.state.objects) ||
+    data.steps.some((s) => hasDroppedModels(s.config.objects));
+  return { state: data.state, steps: data.steps, meta: data.meta, droppedModels };
+}
 
 const VIEWS: Array<{ key: "2d" | "3d" | "ground" | "site"; label: string }> = [
   { key: "2d", label: "▦ 2B Yan" },
@@ -31,18 +65,40 @@ const VIEWS: Array<{ key: "2d" | "3d" | "ground" | "site"; label: string }> = [
 ];
 
 export default function App() {
-  const [state, setState] = useState<UIState>(() => defaultState(CRANES[0]));
+  // Açılışta bir kez: localStorage autosave'i doğrula ve geri yükle (bozuk/eski
+  // veri veya tanınmayan vinç modeli → sessizce varsayılana düş).
+  const [restored] = useState(() => restoreFromAutosave());
+
+  const {
+    state,
+    set: setStateFull,
+    undo,
+    redo,
+    canUndo,
+    canRedo,
+  } = useUndoableState<UIState>(() => restored?.state ?? defaultState(CRANES[0]));
   const [tab, setTab] = useState<"2d" | "3d" | "ground" | "site">("3d");
-  const [steps, setSteps] = useState<WorkStep[]>([]);
+  const [steps, setSteps] = useState<WorkStep[]>(() => restored?.steps ?? []);
   const [activeStepId, setActiveStepId] = useState<string | null>(null);
   const [leftCollapsed, setLeftCollapsed] = useState(false);
   const [rightCollapsed, setRightCollapsed] = useState(false);
+  const [modelsNotice, setModelsNotice] = useState(restored?.droppedModels ?? false);
+  const [meta, setMeta] = useState<ProjectMeta>(() => restored?.meta ?? defaultProjectMeta());
+  const [showMetaDialog, setShowMetaDialog] = useState(false);
+  const [pdfBusy, setPdfBusy] = useState(false);
+  const projectFileInputRef = useRef<HTMLInputElement>(null);
+  // PDF raporuna gömülecek çizimler için ekran dışında (görünmez) render edilen
+  // kapsayıcılar — hangi sekme açık olursa olsun her zaman DOM'da mevcutturlar
+  // (bkz. ui/report.ts captureSvgContainer). SideView2D/SanySideView2D/
+  // GroundForceDiagram bileşenleri değiştirilmez; yalnızca dıştan sarılır.
+  const exportSideRef = useRef<HTMLDivElement>(null);
+  const exportTopRef = useRef<HTMLDivElement>(null);
   const updater = useUpdater();
 
   const crane = useMemo(() => getCrane(state.craneModel), [state.craneModel]);
 
   const set = (patch: Partial<UIState>) => {
-    setState((prev) => {
+    setStateFull((prev) => {
       let next = { ...prev, ...patch };
       if (patch.craneModel) {
         const c = getCrane(patch.craneModel);
@@ -67,6 +123,12 @@ export default function App() {
     setActiveStepId(null);
   };
 
+  // ── Otomatik kaydetme (debounce'lu) ─────────────────────────────────────────
+  useEffect(() => {
+    const t = setTimeout(() => saveAutosave(state, steps, meta), 800);
+    return () => clearTimeout(t);
+  }, [state, steps, meta]);
+
   const { result, error } = useMemo<{
     result: FullLiftResult | null;
     error: string | null;
@@ -75,7 +137,8 @@ export default function App() {
       const r = computeLiftFull(crane, state, {
         outrigger_config: state.outrigger_config,
         slew_angle: state.slew_angle,
-        pad_area: PAD_AREA,
+        pad_area: state.pad_area_m2,
+        allowable_bearing_t_m2: state.allowable_bearing_t_m2,
         objects: state.objects,
         jib:
           state.lift_config !== "T"
@@ -93,8 +156,11 @@ export default function App() {
   }, [crane, state]);
 
   const collisionBad = !!result && result.collision.worst === "collision";
-  const warn =
-    !!result && (result.collision.worst !== "ok" || result.capacity.status === "KAPASİTE AŞIMI");
+  // Yalnızca klerens/çarpışma uyarısı — 3B bom rengi için kullanılır (kapasite
+  // aşımı ayrı bir görsel kanaldır: Sonuçlar panelindeki banner/rozetler).
+  const clearanceWarn = !!result && result.collision.worst !== "ok";
+  const capacityOver = !!result && result.capacity.status === "KAPASİTE AŞIMI";
+  const warn = clearanceWarn || capacityOver;
 
   // Vinçe özgü (SANY) doğru 2B/3B çizim + jib çizim parametreleri.
   const isSany = !!crane.dimensions;
@@ -108,7 +174,7 @@ export default function App() {
     const ids = new Set<string>();
     for (const it of result.collision.items) {
       if (it.severity === "ok") continue;
-      const m = it.id.match(/^obj-(.+)-(boom|load|hook|rope)$/);
+      const m = it.id.match(/^obj-(.+)-(boom|load|hook|rope|tail)$/);
       if (m) ids.add(m[1]);
     }
     return [...ids];
@@ -151,7 +217,7 @@ export default function App() {
   const selectStep = (id: string) => {
     const s = steps.find((x) => x.id === id);
     if (!s) return;
-    setState(structuredClone(s.config));
+    setStateFull(structuredClone(s.config));
     setActiveStepId(id);
   };
   const deleteStep = (id: string) => {
@@ -161,7 +227,88 @@ export default function App() {
   const renameStep = (id: string, name: string) =>
     setSteps((s) => s.map((x) => (x.id === id ? { ...x, name } : x)));
 
-  const pdf = () => result && generateReport(crane, state, result);
+  // PDF üretimi asenkrondur (çizimler SVG→PNG'ye dönüştürülür — bkz. ui/report.ts).
+  // pdfBusy, üretim sürerken çift tıklamayı/çift üretimi engeller.
+  const pdf = async () => {
+    if (!result || pdfBusy) return;
+    setPdfBusy(true);
+    try {
+      await generateReport(crane, state, result, meta, {
+        sideView: exportSideRef.current,
+        topView: exportTopRef.current,
+      });
+    } catch (e) {
+      window.alert(`PDF oluşturulamadı: ${e instanceof Error ? e.message : String(e)}`);
+    } finally {
+      setPdfBusy(false);
+    }
+  };
+  // Klavye kısayolu (Ctrl+P) her render'da yeniden bağlanmasın diye ref'te tutulur.
+  const pdfRef = useRef(pdf);
+  pdfRef.current = pdf;
+
+  const handleReset = () => {
+    if (!window.confirm("Tüm girdiler örnek senaryoya dönecek — emin misin?")) return;
+    setStateFull(defaultState(crane));
+    setActiveStepId(null);
+  };
+
+  const saveProjectFile = () => downloadProjectFile(state, steps, meta);
+  const openProjectFile = () => projectFileInputRef.current?.click();
+  const onProjectFileChosen = async (file: File) => {
+    const text = await file.text();
+    const data = tryParseProject(text);
+    if (!data) {
+      window.alert("Geçersiz veya desteklenmeyen proje dosyası.");
+      return;
+    }
+    try {
+      getCrane(data.state.craneModel);
+    } catch {
+      window.alert(`Proje dosyasındaki vinç modeli tanınmıyor: ${data.state.craneModel}`);
+      return;
+    }
+    setStateFull(data.state);
+    setSteps(data.steps);
+    setMeta(data.meta);
+    setActiveStepId(null);
+    setModelsNotice(
+      hasDroppedModels(data.state.objects) ||
+        data.steps.some((s) => hasDroppedModels(s.config.objects)),
+    );
+  };
+
+  // ── Klavye kısayolları: Ctrl+Z / Ctrl+Shift+Z / Ctrl+Y (geri al/yinele),
+  // Ctrl+P (PDF rapor — tarayıcı yazdırmasını engeller). Metin alanlarında
+  // (input/textarea/select) geri al/yinele'yi tetiklemeyiz — native metin
+  // düzenleme geri alma davranışına karışmasın diye.
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      const mod = e.ctrlKey || e.metaKey;
+      if (!mod) return;
+      const key = e.key.toLowerCase();
+      if (key === "p") {
+        e.preventDefault();
+        void pdfRef.current();
+        return;
+      }
+      const target = e.target as HTMLElement | null;
+      if (target && /^(input|textarea|select)$/i.test(target.tagName)) return;
+      if (key === "z" && e.shiftKey) {
+        e.preventDefault();
+        redo();
+      } else if (key === "z") {
+        e.preventDefault();
+        undo();
+      } else if (key === "y") {
+        e.preventDefault();
+        redo();
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [undo, redo]);
+
   const span = outriggerSpan(state.outrigger_config);
 
   const statusText = collisionBad ? "ÇARPIŞMA RİSKİ" : warn ? "UYARI" : "GÜVENLİ";
@@ -169,6 +316,19 @@ export default function App() {
 
   return (
     <div className="cad">
+      {/* Proje dosyası açma (gizli input) */}
+      <input
+        ref={projectFileInputRef}
+        type="file"
+        accept=".json,application/json"
+        style={{ display: "none" }}
+        onChange={(e) => {
+          const f = e.target.files?.[0];
+          if (f) void onProjectFileChosen(f);
+          e.target.value = "";
+        }}
+      />
+
       {/* ── Başlık / menü çubuğu ──────────────────────────────────────────── */}
       <div className="titlebar">
         <img className="brand-logo" src={logoW} alt="Hareket" />
@@ -177,10 +337,22 @@ export default function App() {
         <Menu
           label="Dosya"
           items={[
-            { label: "PDF Rapor (tek adım)", shortcut: "Ctrl+P", onClick: () => pdf() },
-            { label: "Çok Adımlı PDF", onClick: () => generateMultiStepReport(steps) },
+            { label: "Proje Bilgileri…", onClick: () => setShowMetaDialog(true) },
             { separator: true },
-            { label: "Sıfırla", onClick: () => setState(defaultState(crane)) },
+            { label: "PDF Rapor (tek adım)", shortcut: "Ctrl+P", onClick: () => void pdf() },
+            { label: "Çok Adımlı PDF", onClick: () => generateMultiStepReport(steps, meta) },
+            { separator: true },
+            { label: "Projeyi Kaydet (.json)", onClick: saveProjectFile },
+            { label: "Proje Aç…", onClick: openProjectFile },
+            { separator: true },
+            { label: "Sıfırla", onClick: handleReset },
+          ]}
+        />
+        <Menu
+          label="Düzenle"
+          items={[
+            { label: "Geri Al", shortcut: "Ctrl+Z", onClick: () => undo(), disabled: !canUndo },
+            { label: "Yinele", shortcut: "Ctrl+Shift+Z", onClick: () => redo(), disabled: !canRedo },
           ]}
         />
         <Menu
@@ -201,9 +373,10 @@ export default function App() {
         <Menu
           label="Rapor"
           items={[
-            { label: "Tek adım PDF", onClick: () => pdf() },
-            { label: "Çok adımlı PDF", onClick: () => generateMultiStepReport(steps) },
+            { label: "Tek adım PDF", onClick: () => void pdf() },
+            { label: "Çok adımlı PDF", onClick: () => generateMultiStepReport(steps, meta) },
             { separator: true },
+            { label: "Proje Bilgileri…", onClick: () => setShowMetaDialog(true) },
             { label: "Adımı kaydet", onClick: () => addStep() },
           ]}
         />
@@ -274,8 +447,8 @@ export default function App() {
         <button className="tb-btn" onClick={addStep} title="Mevcut konfigürasyonu adım olarak kaydet">
           ➕ Adım
         </button>
-        <button className="tb-btn primary" onClick={() => pdf()} title="PDF rapor oluştur">
-          ⬇ PDF
+        <button className="tb-btn primary" onClick={() => void pdf()} disabled={pdfBusy} title="PDF rapor oluştur">
+          {pdfBusy ? "⟳ Oluşturuluyor…" : "⬇ PDF"}
         </button>
         <div className="tb-sep" />
         <span className={`tb-status ${statusCls}`}>● {statusText}</span>
@@ -283,6 +456,27 @@ export default function App() {
 
       {/* ── Güncelleme uyarısı (yalnızca masaüstü) ────────────────────────── */}
       <UpdateBanner u={updater} />
+
+      {/* ── İçe aktarılan 3B modeller oturumluk uyarısı ─────────────────────── */}
+      {modelsNotice && (
+        <div
+          className="update-banner"
+          style={{
+            background: "linear-gradient(90deg, rgba(255,186,32,.14), rgba(255,186,32,.04))",
+          }}
+        >
+          <span className="ub-text">
+            ⚠ İçe aktarılan 3B/BIM modeller yalnızca oturum içinde tutulur — kaydedilen veya
+            açılan projede bu nesnelerin geometrisi kaybolur (kutu ölçüleri korunur). Gerekiyorsa
+            "Çevre & Nesneler" bölümünden yeniden içe aktarın.
+          </span>
+          <div className="ub-actions">
+            <button className="btn ghost ub-btn" onClick={() => setModelsNotice(false)}>
+              Kapat
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* ── Gövde: sol panel | viewport | sağ panel ───────────────────────── */}
       <div className="cad-body">
@@ -375,7 +569,7 @@ export default function App() {
                 obstacleDistance={state.obstacle_distance}
                 obstacleWidth={state.obstacle_width}
                 outrigger={span}
-                clearanceWarning={warn}
+                clearanceWarning={clearanceWarn}
                 objects={state.objects}
                 collidingIds={collidingIds}
                 dimensions={crane.dimensions}
@@ -421,7 +615,7 @@ export default function App() {
           ]}
         >
           {result ? (
-            <ResultsPanel result={result} state={state} onPdf={() => pdf()} />
+            <ResultsPanel result={result} state={state} crane={crane} onPdf={() => void pdf()} />
           ) : (
             <div className="error-box">Hesap yapılamadı: {error}</div>
           )}
@@ -436,7 +630,7 @@ export default function App() {
         onSelect={selectStep}
         onDelete={deleteStep}
         onRename={renameStep}
-        onReport={() => generateMultiStepReport(steps)}
+        onReport={() => generateMultiStepReport(steps, meta)}
       />
 
       {/* ── Durum çubuğu ──────────────────────────────────────────────────── */}
@@ -461,6 +655,64 @@ export default function App() {
           Radius {state.radius}m · Bom {state.boom_length}m · Dönme {state.slew_angle}°
         </span>
       </div>
+
+      {/* ── PDF çizim gömme: ekran dışı (görünmez) render ───────────────────
+          Hangi sekme açık olursa olsun her zaman DOM'da mevcut — ui/report.ts
+          captureSvgContainer bu kapsayıcıların içindeki <svg>'yi yakalar. */}
+      <div
+        ref={exportSideRef}
+        style={{ position: "fixed", left: -10000, top: 0, width: 900, height: 560, overflow: "hidden", pointerEvents: "none" }}
+        aria-hidden="true"
+      >
+        {result && isSany ? (
+          <SanySideView2D
+            dims={crane.dimensions!}
+            g={crane.geometry_constants}
+            clearance={result.clearance}
+            boom_length={state.boom_length}
+            radius={state.radius}
+            load_height={state.load_height}
+            load_diameter={state.load_diameter}
+            obstacle_height={state.obstacle_height}
+            obstacle_distance={state.obstacle_distance}
+            obstacle_width={state.obstacle_width}
+            jib={jibDraw}
+          />
+        ) : result && result.clearance ? (
+          <SideView2D
+            g={crane.geometry_constants}
+            clearance={result.clearance}
+            boom_length={state.boom_length}
+            radius={state.radius}
+            load_height={state.load_height}
+            load_diameter={state.load_diameter}
+            obstacle_height={state.obstacle_height}
+            obstacle_distance={state.obstacle_distance}
+            obstacle_width={state.obstacle_width}
+          />
+        ) : null}
+      </div>
+      <div
+        ref={exportTopRef}
+        style={{ position: "fixed", left: -10000, top: 0, width: 900, height: 560, overflow: "hidden", pointerEvents: "none" }}
+        aria-hidden="true"
+      >
+        {result?.outrigger && atAngle ? (
+          <GroundForceDiagram
+            Lx={span.Lx}
+            Ly={span.Ly}
+            atAngle={atAngle}
+            V={result.outrigger.V}
+            padArea={result.outrigger.pad_area}
+            radius={state.radius}
+            slewAngle={state.slew_angle}
+          />
+        ) : null}
+      </div>
+
+      {showMetaDialog && (
+        <ProjectMetaDialog meta={meta} onSave={setMeta} onClose={() => setShowMetaDialog(false)} />
+      )}
     </div>
   );
 }

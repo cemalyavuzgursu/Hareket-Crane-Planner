@@ -11,6 +11,15 @@
     "boom_thickness": 1.25
   },
   "self_weight": 60.0,
+  "boom_weight_t": 15,
+  "boom_weight_source": "TAHMİNİ — Liebherr LTM1160-5.2 Technical Data'da bom öz-ağırlığı yayınlanmamış; muhafazakâr üst sınır (SANY SAC2500E 75,5m/7-bölüm bom kıyaslamasından ölçeklendirilmiştir).",
+  "boom_cog_ratio": 0.5,
+  "counterweight_radius_m": 4.73,
+  "counterweight_radius_source": "Liebherr LTM1160-5.2 Technical Data s.9 — CW yarıçapı 4.73m.",
+  "max_wind_speed_ms": 9,
+  "wind_note": "Liebherr LTM1160-5.2 Technical Data — EN13000 yük tablosu varsayımı 9 m/s rüzgâr hızı.",
+  "single_line_pull_t": 9.3,
+  "max_outrigger_force_t": 76.3,
   "counterweight_options": [
     0,
     24
@@ -26,7 +35,10 @@
   "outrigger_configs": [
     "8,20x8,68"
   ],
-  "notes": "sheave_offset=1.321 (LTM1250'den farklı). 85% set Excel'den. self_weight datasheet'ten doldurulacak. self_weight=60t Sany SAC2500E brüt ağırlığından (datasheet ikamesi).",
+  "capacity_pct_options": [
+    85
+  ],
+  "notes": "sheave_offset=1.321 (LTM1250'den farklı). 85% set Excel'den. self_weight=60t: Liebherr LTM1160-5.2 Technical Data s.9 (yol ağırlığı, 0t CW).",
   "load_chart": {
     "24": {
       "85": {

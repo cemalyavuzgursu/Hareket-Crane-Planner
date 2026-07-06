@@ -38,6 +38,14 @@
     "boom_stowed_length_m": 13.9
   },
   "self_weight": 60.0,
+  "boom_weight_t": 19,
+  "boom_weight_source": "TAHMİNİ — SANY SAC2500E broşüründe bom öz-ağırlığı yayınlanmamış; 75,0m/7 bölümlü tam bom için muhafazakâr üst sınır tahmini.",
+  "boom_cog_ratio": 0.5,
+  "counterweight_radius_m": 4.8,
+  "counterweight_radius_source": "TAHMİNİ — SANY broşüründe CW yarıçapı yayınlanmamış; kuyruk dönüş yarıçapı 5,4m (dimensions.tail_radius_m) üst sınırından türetilmiştir, muhafazakâr etiketlidir.",
+  "max_wind_speed_ms": null,
+  "wind_note": "SANY SAC2500E broşüründe maks. izinli rüzgâr hızı verilmemiş; sahada üretici onayı veya yerel yönetmelik esas alınmalıdır.",
+  "single_line_pull_t": 10.7,
   "capacity_pct_options": [
     100
   ],

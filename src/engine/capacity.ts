@@ -8,6 +8,15 @@ export interface CapacityResult {
   rated_capacity: number; // load chart'tan okunan izinli kapasite (t)
   utilization_pct: number; // kullanım yüzdesi (%)
   status: "UYGUN" | "KAPASİTE AŞIMI";
+  /** Kullanım bandı: >100% "over", >=90% "warning", altı "ok". */
+  severity: "ok" | "warning" | "over";
+}
+
+/** utilization_pct'ten severity bandını hesaplar (>100 over, >=90 warning, altı ok). */
+function severityFor(utilization_pct: number): "ok" | "warning" | "over" {
+  if (utilization_pct > 100) return "over";
+  if (utilization_pct >= 90) return "warning";
+  return "ok";
 }
 
 /** Anahtar normalizasyonu: 16.5 -> "16.5", 40 -> "40". */
@@ -65,10 +74,20 @@ export function getCapacityCurve(
 }
 
 /**
- * Radius'a göre kapasiteyi doğrusal interpolasyonla okur.
- * - Tam noktada: o değer.
- * - Ara değerde: komşu iki nokta arasında doğrusal.
+ * Radius'a göre kapasiteyi "step-down" (bir büyük yarıçapa yuvarlama) politikasıyla okur.
+ * - Tam tablo noktasında: o değer.
+ * - Ara değerde: radius'tan büyük veya eşit ilk tablo noktasının kapasitesi
+ *   (yani bir sonraki büyük yarıçapın, dolayısıyla daha düşük/konservatif kapasitenin) döner.
  * - Tablo aralığı dışında: hata (ekstrapolasyon güvenli değil).
+ *
+ * Neden doğrusal interpolasyon değil: yük tablosu eğrisi radius arttıkça
+ * kapasitenin azaldığı, konveks (dışbükey) bir eğridir. Konveks bir eğride iki
+ * komşu nokta arasını düz çizgiyle birleştirmek, gerçek eğrinin ÜZERİNDE kalır —
+ * yani ara yarıçaplarda olduğundan FAZLA kapasite okunur. Bu, güvenlik kritik bir
+ * hesapta kabul edilemez bir risktir. Sektör pratiği (ve çoğu üretici yazılımı),
+ * tablo dışı bir yarıçapta bir sonraki (daha büyük) tablo noktasının kapasitesini
+ * kullanmaktır; bu her zaman gerçek kapasiteye eşit veya ondan düşüktür, yani
+ * güvenli tarafta kalır.
  */
 export function interpolateCapacity(curve: ChartPoint[], radius: number): number {
   const pts = [...curve].sort((a, b) => a[0] - b[0]);
@@ -80,16 +99,11 @@ export function interpolateCapacity(curve: ChartPoint[], radius: number): number
       `Radius ${radius}m tablo aralığı dışında [${rMin}, ${rMax}]m. Bu konfigürasyonda kaldırma yapılamaz.`,
     );
   }
-  // Tam/komşu nokta arama
-  for (let i = 0; i < pts.length; i++) {
-    const [r, c] = pts[i];
-    if (Math.abs(r - radius) < 1e-9) return c;
-    if (r > radius) {
-      const [r0, c0] = pts[i - 1];
-      const t = (radius - r0) / (r - r0);
-      return c0 + t * (c - c0);
-    }
+  // İlk nokta: radius'a eşit ya da ondan büyük (tam eşleşme veya bir üst kademe).
+  for (const [r, c] of pts) {
+    if (r >= radius - 1e-9) return c;
   }
+  // Buraya teorik olarak ulaşılmaz (rMax kontrolü yukarıda yapıldı).
   return pts[pts.length - 1][1];
 }
 
@@ -185,7 +199,29 @@ export function computeJibCapacity(
   );
   const utilization_pct = (total_load / rated_capacity) * 100;
   const status = utilization_pct > 100 ? "KAPASİTE AŞIMI" : "UYGUN";
-  return { total_load, rated_capacity, utilization_pct, status };
+  return { total_load, rated_capacity, utilization_pct, status, severity: severityFor(utilization_pct) };
+}
+
+export interface ReevingResult {
+  required_parts: number; // gerekli halat donanımı (parça) sayısı
+  single_line_pull_t: number; // tek halat çekiş kapasitesi (t)
+  feasible: boolean; // max_parts içinde karşılanabiliyor mu
+}
+
+/**
+ * Halat donanımı (reeving) kontrolü: toplam yükü kaldırmak için gereken
+ * parça (falso) sayısı = ceil(total_load / single_line_pull_t).
+ * max_parts (vinç makarasının fiziksel üst sınırı) aşılırsa feasible=false.
+ */
+export function computeReeving(
+  single_line_pull_t: number,
+  total_load: number,
+  max_parts = 14,
+): ReevingResult {
+  const required_parts =
+    single_line_pull_t > 0 ? Math.ceil(total_load / single_line_pull_t) : Infinity;
+  const feasible = required_parts > 0 && required_parts <= max_parts;
+  return { required_parts, single_line_pull_t, feasible };
 }
 
 /** (A) Kapasite kontrolü — PROJE.md formülleri. */
@@ -211,5 +247,5 @@ export function computeCapacity(
   );
   const utilization_pct = (total_load / rated_capacity) * 100;
   const status = utilization_pct > 100 ? "KAPASİTE AŞIMI" : "UYGUN";
-  return { total_load, rated_capacity, utilization_pct, status };
+  return { total_load, rated_capacity, utilization_pct, status, severity: severityFor(utilization_pct) };
 }

@@ -6,6 +6,7 @@ import {
   cornerLoadsAtAngle,
   computeOutrigger,
 } from "../engine/outrigger.js";
+import { computeReeving } from "../engine/capacity.js";
 
 describe("parseOutriggerConfig", () => {
   it("Türkçe ondalık virgülü çözer", () => {
@@ -92,6 +93,55 @@ describe("cornerLoadsAtAngle", () => {
     );
     expect(at.tipping).toBe(true);
   });
+
+  it("bom ağırlığı (yük yönünde momentle) köşe yükünü artırır", () => {
+    const withoutBoom = cornerLoadsAtAngle(base, 0);
+    const withBoom = cornerLoadsAtAngle({ ...base, boom_weight: 20, boom_cog_offset: 3 }, 0);
+    expect(withBoom.max_corner.load).toBeGreaterThan(withoutBoom.max_corner.load);
+  });
+
+  it("CW yarıçapı yük tarafı köşeyi azaltır ama ΣP=V korunur", () => {
+    const withoutCwR = cornerLoadsAtAngle(base, 0);
+    const withCwR = cornerLoadsAtAngle({ ...base, counterweight_radius: 4 }, 0);
+    const V = base.crane_self_weight + base.counterweight + base.total_load;
+    const sum1 = withoutCwR.corners.reduce((s, c) => s + c.load, 0);
+    const sum2 = withCwR.corners.reduce((s, c) => s + c.load, 0);
+    expect(sum1).toBeCloseTo(V, 6);
+    expect(sum2).toBeCloseTo(V, 6); // CW yarıçapı ağırlığı değiştirmez, yalnız dağılımı
+    expect(withCwR.max_corner.load).toBeLessThan(withoutCwR.max_corner.load);
+  });
+
+  it("büyük CW + büyük cw_radius + küçük yük/radius → geri devrilme (yük tarafı ayaklar kalkar)", () => {
+    const inp = {
+      crane_self_weight: 20,
+      counterweight: 100,
+      counterweight_radius: 6,
+      total_load: 5,
+      radius: 2,
+      Lx: 6,
+      Ly: 6,
+    };
+    const at = cornerLoadsAtAngle(inp, 0);
+    expect(at.uplift || at.tipping).toBe(true);
+    const V = inp.crane_self_weight + inp.counterweight + inp.total_load;
+    const sum = at.corners.reduce((s, c) => s + c.load, 0);
+    expect(sum).toBeCloseTo(V, 6);
+    // Yük tarafı (FR/RR, sx=+1) köşeleri kalkar; CW tarafı (FL/RL) ağırlaşır.
+    const fr = at.corners.find((c) => c.label === "FR")!;
+    const fl = at.corners.find((c) => c.label === "FL")!;
+    expect(fr.load).toBeCloseTo(0, 6);
+    expect(fr.load).toBeLessThan(fl.load);
+  });
+
+  it("boom_weight/boom_cog_offset/counterweight_radius verilmeyince eski davranışla birebir aynı", () => {
+    const at = cornerLoadsAtAngle(base, 53);
+    const V = base.crane_self_weight + base.counterweight + base.total_load;
+    const a = (53 * Math.PI) / 180;
+    const ex = (base.total_load * base.radius * Math.cos(a)) / V;
+    const ey = (base.total_load * base.radius * Math.sin(a)) / V;
+    expect(at.cog_x).toBeCloseTo(ex, 9);
+    expect(at.cog_y).toBeCloseTo(ey, 9);
+  });
 });
 
 describe("computeOutrigger (slew taraması)", () => {
@@ -126,5 +176,48 @@ describe("computeOutrigger (slew taraması)", () => {
         Ly: 10,
       }),
     ).toThrow(/self_weight/i);
+  });
+
+  it("max_force_t aşılırsa max_outrigger_force_exceeded=true", () => {
+    const res = computeOutrigger(
+      { crane_self_weight: 60, counterweight: 40, total_load: 100, radius: 9, Lx: 10.2, Ly: 10.6 },
+      1,
+      10,
+    );
+    expect(res.max_outrigger_force_exceeded).toBe(true);
+  });
+
+  it("max_force_t verilmeyince flag tanımsız kalır", () => {
+    const res = computeOutrigger(
+      { crane_self_weight: 60, counterweight: 40, total_load: 100, radius: 9, Lx: 10.2, Ly: 10.6 },
+      1,
+    );
+    expect(res.max_outrigger_force_exceeded).toBeUndefined();
+  });
+});
+
+describe("computeReeving (halat donanımı kontrolü)", () => {
+  it("tam bölünen durumda gerekli parça sayısını hesaplar", () => {
+    const r = computeReeving(10, 100);
+    expect(r.required_parts).toBe(10);
+    expect(r.feasible).toBe(true);
+  });
+
+  it("bölünmeyen durumda yukarı yuvarlar (ceil)", () => {
+    const r = computeReeving(10.7, 62);
+    expect(r.required_parts).toBe(Math.ceil(62 / 10.7));
+    expect(r.feasible).toBe(true);
+  });
+
+  it("gerekli parça sayısı max_parts'ı aşarsa feasible=false", () => {
+    const r = computeReeving(10, 1000, 14);
+    expect(r.required_parts).toBe(100);
+    expect(r.feasible).toBe(false);
+  });
+
+  it("varsayılan max_parts=14 kullanılır", () => {
+    const r = computeReeving(10.7, 250); // SAC2500E maks. 250t kaldırma
+    expect(r.required_parts).toBe(Math.ceil(250 / 10.7));
+    expect(r.feasible).toBe(r.required_parts <= 14);
   });
 });

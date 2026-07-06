@@ -93,6 +93,7 @@ export interface MenuAction {
   shortcut?: string;
   onClick?: () => void;
   separator?: boolean;
+  disabled?: boolean;
 }
 
 /** Menü çubuğu öğesi + açılır menü. */
@@ -120,8 +121,9 @@ export function Menu({ label, items }: { label: string; items: MenuAction[] }) {
             ) : (
               <div
                 key={i}
-                className="mi"
+                className={`mi ${it.disabled ? "disabled" : ""}`}
                 onClick={() => {
+                  if (it.disabled) return;
                   it.onClick?.();
                   setOpen(false);
                 }}

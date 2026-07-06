@@ -16,6 +16,20 @@ export interface OutriggerInputs {
   base_offset_y?: number;
   /** Takoz (pad) temas alanı (m²) — zemin basıncı için. */
   pad_area?: number;
+  /** Bom öz-ağırlığı (t). Verilmezse moment dengesine katılmaz (eski davranış). */
+  boom_weight?: number;
+  /**
+   * Bom CoG'sinin slew-yerel +X yönünde (yükle aynı yönde) slew merkezine yatay
+   * uzaklığı (m). Çağıran taraf hesaplar (bkz. index.ts computeLiftFull). Negatif
+   * olabilir (bom mafsalı slew merkezinin gerisindeyse). Verilmezse 0.
+   */
+  boom_cog_offset?: number;
+  /**
+   * Denge ağırlığının slew merkezine yatay uzaklığı (m). Denge ağırlığı bomun
+   * TERSİ yönünde olduğundan katkısı −counterweight_radius yönünde hesaplanır.
+   * Verilmezse 0 (eski davranış: denge ağırlığının momenti modellenmez).
+   */
+  counterweight_radius?: number;
 }
 
 export interface CornerLoad {
@@ -48,6 +62,12 @@ export interface OutriggerResult {
   ground_pressure?: number; // takoz altı basınç (t/m²), pad_area verilirse
   /** Takoz temas alanı (m²) — köşe basınçlarını UI'da göstermek için. */
   pad_area?: number;
+  /** max_force_t verilmişse ve max_corner_load onu aşıyorsa true. */
+  max_outrigger_force_exceeded?: boolean;
+  /** Zemin taşıma kontrolü (allowable_bearing_t_m2 verilirse, çağıran tarafta doldurulur). */
+  bearing_ok?: boolean;
+  /** Gerekli takoz alanı (m²) = max_corner_load / allowable_bearing_t_m2. */
+  required_pad_area_m2?: number;
   per_angle: OutriggerAtAngle[]; // tarama detayları
 }
 
@@ -107,25 +127,38 @@ function solveThreeSupport(
 /**
  * Tek bir slew açısı için 4 köşe reaksiyonu.
  *
- * Not: Denge ağırlığı ve bom öz-ağırlığının slew ile dönen momentleri
- * modellenmez (broşürlerde ağırlık merkezi kolları yok); bunlar yüke göre
- * ters yönde çalıştığından yüklü taraf köşeleri için sonuç muhafazakârdır.
+ * Not: boom_weight/boom_cog_offset/counterweight_radius verilirse bom
+ * öz-ağırlığının İLERİ (yük yönünde) ve denge ağırlığının GERİ (yük yönünün
+ * tersi) momentleri de dengeye katılır — geri devrilme riski de bu sayede
+ * doğal olarak ortaya çıkar. Bu alanlar verilmezse (eski çağrılar) katkıları
+ * 0'dır ve sonuç önceki davranışla birebir aynıdır.
  */
 export function cornerLoadsAtAngle(
   inp: OutriggerInputs,
   slew_angle_deg: number,
 ): OutriggerAtAngle {
-  const V = inp.crane_self_weight + inp.counterweight + inp.total_load;
+  const boom_weight = inp.boom_weight ?? 0;
+  const V = inp.crane_self_weight + inp.counterweight + inp.total_load + boom_weight;
   const a = slew_angle_deg * DEG;
 
-  // Yükün ayak dikdörtgeni içindeki yatay konumu (slew ile döner).
+  // Yükün, bomun ve denge ağırlığının ayak dikdörtgeni içindeki yatay konumu
+  // (hepsi aynı slew ekseninde, slew ile birlikte döner). Denge ağırlığı bomun
+  // TERSİ yönünde olduğundan −counterweight_radius kullanılır.
   const load_offset_x = inp.radius * Math.cos(a);
   const load_offset_y = inp.radius * Math.sin(a);
+  const boom_offset_x = (inp.boom_cog_offset ?? 0) * Math.cos(a);
+  const boom_offset_y = (inp.boom_cog_offset ?? 0) * Math.sin(a);
+  const cw_offset_x = -(inp.counterweight_radius ?? 0) * Math.cos(a);
+  const cw_offset_y = -(inp.counterweight_radius ?? 0) * Math.sin(a);
 
   // Bileşke ağırlık merkezinin merkeze göre kayması (moment dengesi):
-  // e = (Σ kuvvet·kol) / V. Yükün katkısı baskındır; sabit base offset eklenir.
-  const e_x = (inp.total_load * load_offset_x) / V + (inp.base_offset_x ?? 0);
-  const e_y = (inp.total_load * load_offset_y) / V + (inp.base_offset_y ?? 0);
+  // e = (Σ kuvvet·kol) / V. Sabit base offset ayrıca eklenir.
+  const e_x =
+    (inp.total_load * load_offset_x + boom_weight * boom_offset_x + inp.counterweight * cw_offset_x) / V +
+    (inp.base_offset_x ?? 0);
+  const e_y =
+    (inp.total_load * load_offset_y + boom_weight * boom_offset_y + inp.counterweight * cw_offset_y) / V +
+    (inp.base_offset_y ?? 0);
 
   // Doğrusal (rijit plaka) formülü — dört ayak da basınçta ise geçerli.
   let loads = CORNERS.map(
@@ -165,13 +198,14 @@ export function cornerLoadsAtAngle(
 export function computeOutrigger(
   inp: OutriggerInputs,
   step_deg = 1,
+  max_force_t?: number,
 ): OutriggerResult {
   if (!isFinite(inp.crane_self_weight) || inp.crane_self_weight <= 0) {
     throw new Error(
       "Ayak reaksiyonu için crane_self_weight gerekli (datasheet'ten). self_weight tanımlı değil.",
     );
   }
-  const V = inp.crane_self_weight + inp.counterweight + inp.total_load;
+  const V = inp.crane_self_weight + inp.counterweight + inp.total_load + (inp.boom_weight ?? 0);
   const per_angle: OutriggerAtAngle[] = [];
   let critical: OutriggerAtAngle | null = null;
 
@@ -193,6 +227,9 @@ export function computeOutrigger(
   if (inp.pad_area && inp.pad_area > 0) {
     result.ground_pressure = c.max_corner.load / inp.pad_area;
     result.pad_area = inp.pad_area;
+  }
+  if (max_force_t != null && max_force_t > 0) {
+    result.max_outrigger_force_exceeded = c.max_corner.load > max_force_t;
   }
   return result;
 }

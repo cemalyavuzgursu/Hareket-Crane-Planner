@@ -1,9 +1,11 @@
+import type { CraneModel } from "../engine/types";
 import type { FullLiftResult } from "../engine/index";
 import type { UIState } from "./state";
 
 interface Props {
   result: FullLiftResult;
   state: UIState;
+  crane: CraneModel;
   onPdf: () => void;
 }
 
@@ -14,11 +16,14 @@ const CORNER_TR: Record<string, string> = {
   RR: "ARKA SAĞ",
 };
 
-function Ring({ pct, over }: { pct: number; over: boolean }) {
+function Ring({ pct, severity }: { pct: number; severity: "ok" | "warning" | "over" }) {
   const R = 70;
   const C = 2 * Math.PI * R;
   const frac = Math.min(pct / 100, 1);
-  const color = over ? "var(--red)" : pct > 90 ? "var(--accent)" : "var(--green)";
+  const color =
+    severity === "over" ? "var(--red)" : severity === "warning" ? "var(--accent)" : "var(--green)";
+  const label =
+    severity === "over" ? "KAPASİTE AŞIMI" : severity === "warning" ? "DİKKAT ≥ %90" : "UYGUN";
   return (
     <div className="ring-wrap">
       <div className="ring">
@@ -41,7 +46,7 @@ function Ring({ pct, over }: { pct: number; over: boolean }) {
             {pct.toFixed(2)}%
           </div>
           <div className="lbl" style={{ color }}>
-            {over ? "KAPASİTE AŞIMI" : "UYGUN"}
+            {label}
           </div>
         </div>
       </div>
@@ -60,29 +65,44 @@ const SOURCE_TR: Record<string, string> = {
   load: "Yük",
   hook: "Kanca",
   rope: "Halat",
+  tail: "Kuyruk Savrulması",
 };
 
-export default function ResultsPanel({ result, state, onPdf }: Props) {
+export default function ResultsPanel({ result, state, crane, onPdf }: Props) {
   const { capacity, clearance, outrigger, collision } = result;
-  const over = capacity.status === "KAPASİTE AŞIMI";
 
   const obsBad = !!clearance && clearance.clearance_to_obstacle < 0;
   const loadBad = !!clearance && clearance.clearance_to_load < 0;
   const anyClearanceBad = obsBad || loadBad;
 
-  // İstenen dönme açısındaki köşe yükleri (mevcut yönelim)
+  // İstenen dönme açısındaki köşe yükleri (mevcut yönelim). slew_angle 360°
+  // dışına çıkabilir (ör. 370°) — per_angle taraması [0,360) aralığındadır,
+  // bu yüzden karşılaştırmadan önce normalize edilir.
+  const normalizedSlew = ((state.slew_angle % 360) + 360) % 360;
   const atCurrent =
     outrigger?.per_angle.reduce((best, a) =>
-      Math.abs(a.slew_angle - state.slew_angle) < Math.abs(best.slew_angle - state.slew_angle) ? a : best,
+      Math.abs(a.slew_angle - normalizedSlew) < Math.abs(best.slew_angle - normalizedSlew) ? a : best,
     outrigger.per_angle[0]) ?? null;
+
+  const bannerCls = capacity.severity === "over" ? "bad" : capacity.severity === "warning" ? "" : "ok";
+  const bannerStyle =
+    capacity.severity === "warning"
+      ? { background: "rgba(255,186,32,.12)", border: "1px solid rgba(255,186,32,.45)", color: "#ffd479" }
+      : undefined;
+  const bannerText =
+    capacity.severity === "over"
+      ? "⛔ KALDIRMA İŞLEMİ ENGELLENDİ"
+      : capacity.severity === "warning"
+        ? "⚠ DİKKAT: kullanım ≥ %90 — kritik kaldırma"
+        : "✓ Kaldırma sınırlar içinde";
 
   return (
     <div className="results-stack">
       <div className="card">
         <h3>Kapasite Kullanımı</h3>
-        <Ring pct={capacity.utilization_pct} over={over} />
-        <div className={`banner ${over ? "bad" : "ok"}`}>
-          {over ? "⛔ KALDIRMA İŞLEMİ ENGELLENDİ" : "✓ Kaldırma sınırlar içinde"}
+        <Ring pct={capacity.utilization_pct} severity={capacity.severity} />
+        <div className={`banner ${bannerCls}`} style={bannerStyle}>
+          {bannerText}
         </div>
         <div className="kv">
           <span className="k">Toplam Yük</span>
@@ -93,6 +113,42 @@ export default function ResultsPanel({ result, state, onPdf }: Props) {
           <span className="v">{capacity.rated_capacity.toFixed(2)} <small>t</small></span>
         </div>
       </div>
+
+      {(result.reeving || crane.max_wind_speed_ms !== undefined || !!crane.wind_note) && (
+        <div className="card">
+          <h3>Halat Donanımı & Rüzgâr</h3>
+          {result.reeving && (
+            <>
+              <div className="kv">
+                <span className="k">Halat Donanımı (Reeving)</span>
+                <span className={`v ${result.reeving.feasible ? "" : "bad"}`}>
+                  {result.reeving.required_parts} <small>kollu</small>
+                </span>
+              </div>
+              <div className="kv">
+                <span className="k">Tek Halat Çekişi</span>
+                <span className="v">{result.reeving.single_line_pull_t.toFixed(1)} <small>t</small></span>
+              </div>
+              {!result.reeving.feasible && (
+                <div className="banner bad" style={{ marginTop: 8, marginBottom: 0 }}>
+                  ⛔ Gerekli donanım vinç makarasının fiziksel sınırını aşıyor — bu yük bu
+                  konfigürasyonla kaldırılamaz.
+                </div>
+              )}
+            </>
+          )}
+          {crane.max_wind_speed_ms != null ? (
+            <div className="disclaimer" style={{ marginTop: result.reeving ? 10 : 0 }}>
+              💨 Maks. çalışma rüzgârı: {crane.max_wind_speed_ms} m/s
+              {crane.wind_note ? ` — ${crane.wind_note}` : " (EN13000 tablo varsayımı)"}
+            </div>
+          ) : crane.wind_note ? (
+            <div className="disclaimer" style={{ marginTop: result.reeving ? 10 : 0 }}>
+              💨 Rüzgâr limiti: {crane.wind_note}
+            </div>
+          ) : null}
+        </div>
+      )}
 
       {result.jib && (
         <div className="card">
@@ -192,7 +248,7 @@ export default function ResultsPanel({ result, state, onPdf }: Props) {
             </div>
             <div className="kv">
               <span className="k">En Kritik Köşe Yükü</span>
-              <span className="v warn">
+              <span className={`v ${outrigger.max_outrigger_force_exceeded ? "bad" : ""}`}>
                 {outrigger.max_corner_load.toFixed(1)} <small>t</small>
               </span>
             </div>
@@ -200,10 +256,33 @@ export default function ResultsPanel({ result, state, onPdf }: Props) {
               <span className="k">Kritik Dönme Açısı</span>
               <span className="v">{outrigger.critical_angle.toFixed(0)} <small>°</small></span>
             </div>
+            {outrigger.max_outrigger_force_exceeded && (
+              <div className="banner bad" style={{ marginTop: 4, marginBottom: 8 }}>
+                ⛔ Üretici maks. ayak kuvveti ({crane.max_outrigger_force_t} t) aşıldı!
+              </div>
+            )}
             {outrigger.ground_pressure != null && (
               <div className="kv">
                 <span className="k">Maks Zemin Basıncı</span>
-                <span className="v warn">{outrigger.ground_pressure.toFixed(1)} <small>t/m²</small></span>
+                <span className={`v ${outrigger.bearing_ok === false ? "bad" : ""}`}>
+                  {outrigger.ground_pressure.toFixed(1)} <small>t/m²</small>
+                </span>
+              </div>
+            )}
+            {outrigger.bearing_ok != null && (
+              <div className="kv">
+                <span className="k">Zemin Taşıma Kontrolü</span>
+                <span className={`v ${outrigger.bearing_ok ? "ok" : "bad"}`}>
+                  {outrigger.bearing_ok ? "✓ Geçer" : "⛔ Kalır"}
+                </span>
+              </div>
+            )}
+            {outrigger.required_pad_area_m2 != null && (
+              <div className="kv">
+                <span className="k">Önerilen Min. Takoz Alanı</span>
+                <span className={`v ${outrigger.bearing_ok === false ? "bad" : ""}`}>
+                  {outrigger.required_pad_area_m2.toFixed(2)} <small>m²</small>
+                </span>
               </div>
             )}
             {(outrigger.tipping_risk || outrigger.has_uplift) && (

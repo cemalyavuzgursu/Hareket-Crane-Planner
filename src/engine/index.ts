@@ -7,7 +7,13 @@ export * from "./outrigger.js";
 export * from "./collision.js";
 
 import type { CraneModel, LiftConfig, LiftInputs, SceneObject } from "./types.js";
-import { computeCapacity, computeJibCapacity, type CapacityResult } from "./capacity.js";
+import {
+  computeCapacity,
+  computeJibCapacity,
+  computeReeving,
+  type CapacityResult,
+  type ReevingResult,
+} from "./capacity.js";
 import { computeClearance, type ClearanceResult } from "./clearance.js";
 import {
   computeOutrigger,
@@ -43,6 +49,8 @@ export interface FullLiftResult extends LiftResult {
   outrigger_error?: string;
   /** Çarpışma raporu (ana engel/yük + çevre nesneleri). Jib modunda boştur. */
   collision: CollisionReport;
+  /** Halat donanımı (reeving) kontrolü — crane.single_line_pull_t tanımlıysa hesaplanır. */
+  reeving?: ReevingResult;
 }
 
 function isJib(jib?: JibParams): jib is JibParams {
@@ -112,6 +120,8 @@ export function computeLiftFull(
     pad_area?: number;
     objects?: SceneObject[];
     jib?: JibParams;
+    /** İzin verilen zemin taşıma basıncı (t/m²) — verilirse bearing_ok/required_pad_area_m2 hesaplanır. */
+    allowable_bearing_t_m2?: number;
   },
 ): FullLiftResult {
   const base = computeLift(crane, inp, opts.jib);
@@ -122,6 +132,23 @@ export function computeLiftFull(
       throw new Error("Vinç self_weight tanımlı değil (datasheet'ten doldurulmalı).");
     }
     const { Lx, Ly } = parseOutriggerConfig(opts.outrigger_config);
+
+    // Bom CoG'sinin slew merkezine yatay uzaklığı (slew-yerel +X, yükle aynı yön).
+    // Ana bom modunda klerensten gama (bom yükselme açısı) bilinir:
+    //   r_boom = -boom_offset + boom_cog_ratio·boom_length·cos(gama)
+    // (bom mafsalı slew merkezinin boom_offset kadar gerisinde; CoG bu noktadan
+    // bom ekseni boyunca boom_cog_ratio oranında ileridedir — yaklaşık, alfa
+    // ihmal edilir). Jib modunda gama hesaplanmaz (klerens jib geometrisini
+    // modellemez); muhafazakâr yaklaşım: bom+jib bileşke CoG'sinin yükün yarısı
+    // mesafesinde olduğu kabul edilir (r_boom = radius·boom_cog_ratio).
+    let boom_cog_offset: number | undefined;
+    if (crane.boom_cog_ratio != null) {
+      boom_cog_offset = base.clearance
+        ? -crane.geometry_constants.boom_offset +
+          crane.boom_cog_ratio * inp.boom_length * Math.cos(base.clearance.gama)
+        : inp.radius * crane.boom_cog_ratio;
+    }
+
     outrigger = computeOutrigger(
       {
         crane_self_weight: crane.self_weight,
@@ -131,9 +158,20 @@ export function computeLiftFull(
         Lx,
         Ly,
         pad_area: opts.pad_area,
+        boom_weight: crane.boom_weight_t,
+        boom_cog_offset,
+        counterweight_radius: crane.counterweight_radius_m,
       },
       1,
+      crane.max_outrigger_force_t,
     );
+
+    if (opts.allowable_bearing_t_m2 && opts.allowable_bearing_t_m2 > 0) {
+      outrigger.required_pad_area_m2 = outrigger.max_corner_load / opts.allowable_bearing_t_m2;
+      if (outrigger.pad_area != null) {
+        outrigger.bearing_ok = outrigger.pad_area >= outrigger.required_pad_area_m2;
+      }
+    }
   } catch (e) {
     outrigger_error = e instanceof Error ? e.message : String(e);
   }
@@ -151,10 +189,19 @@ export function computeLiftFull(
           load_diameter: inp.load_diameter,
           hook_height: crane.geometry_constants.hook_height,
           objects: opts.objects ?? [],
+          // dimensions yoksa (ör. eksik broşür verisi) kuyruk savrulma kontrolü
+          // atlanır — computeCollisions bu alanlar undefined ise item üretmez.
+          tail_radius_m: crane.dimensions?.tail_radius_m,
+          superstructure_height_m: crane.dimensions?.superstructure_deck_height_m,
         },
         base.clearance,
       )
     : EMPTY_COLLISION;
 
-  return { ...base, outrigger, outrigger_error, collision };
+  const reeving =
+    crane.single_line_pull_t != null
+      ? computeReeving(crane.single_line_pull_t, base.capacity.total_load)
+      : undefined;
+
+  return { ...base, outrigger, outrigger_error, collision, reeving };
 }

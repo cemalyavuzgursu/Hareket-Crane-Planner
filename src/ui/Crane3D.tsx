@@ -62,10 +62,11 @@ interface GltfModelProps {
   depth: number;
   height: number;
   rotationY: number; // derece
+  baseY: number; // taban kotu, zeminden yükseklik (m) — ör. asılı enerji hattı
   hit: boolean;
 }
 
-function GltfModel({ url, x, z, width, depth, height, rotationY, hit }: GltfModelProps) {
+function GltfModel({ url, x, z, width, depth, height, rotationY, baseY, hit }: GltfModelProps) {
   const { scene } = useGLTF(url);
   const cloned = useMemo(() => scene.clone(true), [scene]);
 
@@ -85,7 +86,7 @@ function GltfModel({ url, x, z, width, depth, height, rotationY, hit }: GltfMode
   }, [cloned, width, depth, height]);
 
   return (
-    <group position={[x, 0, z]} rotation={[0, (rotationY * Math.PI) / 180, 0]}>
+    <group position={[x, baseY, z]} rotation={[0, (rotationY * Math.PI) / 180, 0]}>
       <group position={offset.toArray()} scale={scale}>
         <primitive object={cloned} />
       </group>
@@ -407,10 +408,12 @@ function CraneScene({
         const ox = safe(o.x, 0);
         const oz = safe(o.z, 0);
         const rotY = safe(o.rotationY ?? 0, 0);
+        // Taban kotu (zeminden yükseklik) — asılı nesneler (ör. enerji hattı) için >0.
+        const baseY = Math.max(0, safe(o.y ?? 0, 0));
 
         // Sınırlayıcı kutu (model yüklenemezse yedek + primitif nesneler).
         const boxMesh = (
-          <mesh position={[ox, hgt / 2, oz]} rotation={[0, (rotY * Math.PI) / 180, 0]}>
+          <mesh position={[ox, baseY + hgt / 2, oz]} rotation={[0, (rotY * Math.PI) / 180, 0]}>
             <boxGeometry args={[w, hgt, d]} />
             <meshStandardMaterial
               color={objColor(o.kind, hit)}
@@ -434,6 +437,7 @@ function CraneScene({
                   depth={d}
                   height={hgt}
                   rotationY={rotY}
+                  baseY={baseY}
                   hit={hit}
                 />
               </Suspense>

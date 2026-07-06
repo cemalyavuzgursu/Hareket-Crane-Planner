@@ -123,6 +123,24 @@ export interface CraneModel {
     tail_slewing_radius_m?: number;
     counterweight_options_t?: number[];
   };
+  /** Bom öz-ağırlığı (t) — ayak reaksiyonu momenti için. Yayınlanmamışsa TAHMİNİ etiketlenir. */
+  boom_weight_t?: number;
+  /** boom_weight_t'nin kaynağı/güvenilirliği (ör. "TAHMİNİ — ..."). */
+  boom_weight_source?: string;
+  /** Bom CoG'sinin bom dibinden uca oranı (0–1). Yayınlanmazsa muhafazakâr üst sınır kullanılır. */
+  boom_cog_ratio?: number;
+  /** Denge ağırlığı bloğunun slew merkezine yatay uzaklığı (m) — ayak reaksiyonu momenti için. */
+  counterweight_radius_m?: number;
+  /** counterweight_radius_m'nin kaynağı/güvenilirliği. */
+  counterweight_radius_source?: string;
+  /** Maks. izinli rüzgâr hızı (m/s) — broşürde yoksa null. */
+  max_wind_speed_ms?: number | null;
+  /** Rüzgâr limiti hakkında açıklama/kaynak notu. */
+  wind_note?: string;
+  /** Tek halat çekiş kapasitesi (t) — reeving (donanım sayısı) kontrolü için. */
+  single_line_pull_t?: number;
+  /** Maks. izinli tekil ayak (outrigger) kuvveti (t) — referans/aşım kontrolü için. */
+  max_outrigger_force_t?: number;
   load_chart: LoadChart;
 }
 
@@ -153,7 +171,15 @@ export interface SceneObject {
   width: number; // X yönü ölçü (m)
   depth: number; // Z yönü ölçü (m)
   height: number; // yükseklik (m)
-  rotationY?: number; // Y ekseni dönüşü (derece) — yalnızca çizim
+  /** Taban kotu, zeminden yükseklik (m). Belirtilmezse 0 (zemine oturur). Ör.
+   * enerji hattı gibi ASILI nesneler için >0 kullanılır (kutu [y, y+height]). */
+  y?: number;
+  /** Enerji hattı gerilimi (kV) — kind==="powerline" için emniyet marjını belirler. */
+  voltage_kv?: number;
+  /** Y ekseni dönüşü (derece). Çarpışma testinde de dikkate alınır: nesne
+   * kutusu bu açı kadar döndürülmüş kabul edilip test noktaları nesnenin
+   * yerel çerçevesine çevrilerek mesafe hesaplanır. */
+  rotationY?: number;
   /** İçe aktarılmış model için blob/object URL (.glb/.gltf). Oturum içi. */
   modelUrl?: string;
   /** İçe aktarılan dosya adı (UI etiketi için). */

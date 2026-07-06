@@ -8,12 +8,13 @@ import { StatusBar } from "expo-status-bar";
 import { SafeAreaView } from "react-native";
 
 import { CRANES } from "./src/shared/cranes";
-import { computeLiftFull } from "./src/shared/engine";
+import { computeLiftFull, getJibCapacityCurve } from "./src/shared/engine";
 import { cornerLoadsAtAngle, parseOutriggerConfig } from "./src/shared/engine/outrigger";
-import type { CraneModel } from "./src/shared/engine/types";
+import type { CapacityResult, ReevingResult } from "./src/shared/engine/capacity";
+import type { CraneModel, LiftConfig } from "./src/shared/engine/types";
 
 import { AppState, defaultState, reconcileForCrane } from "./src/state";
-import { C, mono, utilColor, severityColor } from "./src/theme";
+import { C, mono, severityColor } from "./src/theme";
 import { Stepper, Segmented, Section } from "./src/components/Controls";
 import SideView2D from "./src/components/SideView2D";
 import GroundForceDiagram from "./src/components/GroundForceDiagram";
@@ -40,8 +41,12 @@ export default function App() {
   const set = <K extends keyof AppState>(k: K, v: AppState[K]) =>
     setState((p) => ({ ...p, [k]: v }));
 
+  const patch = (p: Partial<AppState>) => setState((prev) => ({ ...prev, ...p }));
+
   const selectCrane = (c: CraneModel) =>
     setState((p) => reconcileForCrane(p, c));
+
+  const isJibMode = state.lift_config !== "T";
 
   // --- Hesap (hata olursa yakala) ---
   const calc = React.useMemo(() => {
@@ -49,7 +54,12 @@ export default function App() {
       const result = computeLiftFull(crane, state, {
         outrigger_config: state.outrigger_config,
         slew_angle: state.slew_angle,
+        // Mobil uygulama çevre nesnesi kütüphanesi taşımaz — bina/enerji hattı gibi
+        // dış engeller yalnızca masaüstü uygulamada tanımlanıp kontrol edilir.
         objects: [],
+        jib: isJibMode
+          ? { config: state.lift_config, jib_length: state.jib_length, jib_offset: state.jib_offset }
+          : undefined,
       });
       return { result, error: null as string | null };
     } catch (e) {
@@ -85,15 +95,23 @@ export default function App() {
       </View>
 
       {/* Durum banner'ı */}
-      <StatusBanner error={calc.error} pct={pct} cap={cap} worst={result?.collision.worst ?? "ok"} />
+      <StatusBanner
+        error={calc.error}
+        pct={pct}
+        cap={cap}
+        worst={result?.collision.worst ?? "ok"}
+        reeving={result?.reeving}
+        crane={crane}
+      />
 
       {/* Sekme içeriği */}
       <View style={{ flex: 1 }}>
         {tab === "girdi" && (
-          <InputsTab crane={crane} state={state} set={set} />
+          <InputsTab crane={crane} state={state} set={set} patch={patch} />
         )}
         {tab === "2d" && (
           <ScrollView contentContainerStyle={s.pad}>
+            {isJibMode && <JibScopeNotice />}
             {result?.clearance ? (
               <View style={s.card}>
                 <SideView2D
@@ -110,7 +128,13 @@ export default function App() {
                 />
               </View>
             ) : (
-              <Empty text={calc.error ?? "Bu konfigürasyonda 2D geometri hesaplanamadı."} />
+              <Empty
+                text={
+                  isJibMode
+                    ? "Jib modunda 2D yan görünüm çizilmez — broşürde jib mafsal geometrisi tanımlı değildir."
+                    : (calc.error ?? "Bu konfigürasyonda 2D geometri hesaplanamadı.")
+                }
+              />
             )}
             <QuickReadout state={state} />
           </ScrollView>
@@ -119,7 +143,11 @@ export default function App() {
           <CogTab crane={crane} state={state} width={width} outriggerError={result?.outrigger_error} totalLoad={cap?.total_load ?? 0} />
         )}
         {tab === "carpisma" && (
-          <CollisionTab items={result?.collision.items ?? []} error={calc.error} />
+          <CollisionTab
+            items={result?.collision.items ?? []}
+            error={calc.error}
+            isJibMode={isJibMode}
+          />
         )}
       </View>
 
@@ -150,10 +178,12 @@ export default function App() {
 function StatusBanner(props: {
   error: string | null;
   pct: number;
-  cap?: { rated_capacity: number; total_load: number; status: string };
+  cap?: CapacityResult;
   worst: "ok" | "warning" | "collision";
+  reeving?: ReevingResult;
+  crane: CraneModel;
 }) {
-  const { error, pct, cap, worst } = props;
+  const { error, pct, cap, worst, reeving, crane } = props;
   if (error || !cap) {
     return (
       <View style={[s.banner, { backgroundColor: "rgba(255,90,77,0.12)", borderColor: C.red }]}>
@@ -162,16 +192,34 @@ function StatusBanner(props: {
       </View>
     );
   }
-  const col = utilColor(pct);
-  const over = pct > 100;
+  const over = cap.severity === "over";
+  const critical = cap.severity === "warning";
+  const col = over ? C.red : critical ? C.orange : C.green;
+  const bigLabel = over ? "KAPASİTE AŞIMI" : critical ? "KRİTİK KALDIRMA" : "UYGUN";
   return (
-    <View style={[s.banner, { borderColor: col, backgroundColor: over ? "rgba(255,90,77,0.12)" : "rgba(0,228,117,0.08)" }]}>
+    <View
+      style={[
+        s.banner,
+        { borderColor: col, backgroundColor: over ? "rgba(255,90,77,0.12)" : critical ? "rgba(255,138,61,0.12)" : "rgba(0,228,117,0.08)" },
+      ]}
+    >
       <View style={{ flex: 1 }}>
-        <Text style={[s.bannerBig, { color: col }]}>{over ? "KAPASİTE AŞIMI" : "UYGUN"}</Text>
+        <Text style={[s.bannerBig, { color: col }]}>{bigLabel}</Text>
         <Text style={s.bannerMsg}>
           Yük {cap.total_load.toFixed(1)} t · İzin {cap.rated_capacity.toFixed(1)} t
           {worst !== "ok" ? (worst === "collision" ? "  ·  ⚠ ÇARPIŞMA" : "  ·  ⚠ yakın") : ""}
         </Text>
+        {reeving && (
+          <Text style={[s.bannerMsg, !reeving.feasible && { color: C.red }]}>
+            {reeving.required_parts} kollu donanım · tek halat {reeving.single_line_pull_t.toFixed(1)} t
+            {!reeving.feasible ? "  ·  ⚠ makara kapasitesi yetersiz" : ""}
+          </Text>
+        )}
+        {crane.max_wind_speed_ms != null && (
+          <Text style={s.bannerMsg}>
+            Rüzgâr limiti {crane.max_wind_speed_ms} m/s{crane.wind_note ? ` — ${crane.wind_note}` : ""}
+          </Text>
+        )}
       </View>
       <View style={{ alignItems: "flex-end" }}>
         <Text style={[s.pctBig, { color: col }]}>{Number.isFinite(pct) ? pct.toFixed(0) : "—"}%</Text>
@@ -181,13 +229,74 @@ function StatusBanner(props: {
   );
 }
 
+/** Jib modunda 2D/çarpışma sekmelerinde gösterilen kapsam uyarısı. */
+function JibScopeNotice() {
+  return (
+    <View style={[s.card, { borderColor: C.orange, backgroundColor: "rgba(255,138,61,0.1)" }]}>
+      <Text style={{ color: C.orange, fontSize: 13.5, fontWeight: "700" }}>
+        ⚠ Jib modunda klerens/çarpışma hesaplanmaz
+      </Text>
+      <Text style={{ color: C.textDim, fontSize: 12.5, marginTop: 4 }}>
+        Broşürde jib mafsal geometrisi tanımlı olmadığından bu konfigürasyonda yalnızca
+        kapasite ve ayak reaksiyonu hesaplanır.
+      </Text>
+    </View>
+  );
+}
+
 function InputsTab(props: {
   crane: CraneModel;
   state: AppState;
   set: <K extends keyof AppState>(k: K, v: AppState[K]) => void;
+  patch: (p: Partial<AppState>) => void;
 }) {
-  const { crane, state, set } = props;
+  const { crane, state, set, patch } = props;
   const pctOpts = crane.capacity_pct_options ?? [75, 85];
+  const jibMeta = crane.jib_configs;
+  const activeJib = jibMeta?.configs.find((c) => c.key === state.lift_config);
+  const inJib = !!activeJib;
+  const boomOptions = activeJib ? activeJib.boom_lengths : crane.boom_lengths;
+
+  // Seçili jib eğrisinin geçerli radius aralığı (yoksa null).
+  const jibRange = (cfg: LiftConfig, jl: number, bl: number, off: number): [number, number] | null => {
+    try {
+      const curve = getJibCapacityCurve(crane, cfg, jl, bl, off);
+      const rs = curve.map((p) => p[0]);
+      return [Math.min(...rs), Math.max(...rs)];
+    } catch {
+      return null;
+    }
+  };
+  // Radius'u seçili jib eğrisinin aralığına sıkıştırır (geçersiz radius → tablo hatası önlenir).
+  const clampRadius = (cfg: LiftConfig, jl: number, bl: number, off: number, r: number) => {
+    const range = jibRange(cfg, jl, bl, off);
+    if (!range) return r;
+    return Math.min(range[1], Math.max(range[0], r));
+  };
+
+  // Kaldırma konfigürasyonu değişimi — bağımlı alanları (denge, bom, jib, radius) tutarlı kurar.
+  const changeConfig = (key: LiftConfig) => {
+    if (key === "T" || !jibMeta) {
+      patch({ lift_config: "T" });
+      return;
+    }
+    const meta = jibMeta.configs.find((c) => c.key === key);
+    if (!meta) return;
+    const boom = meta.boom_lengths.includes(state.boom_length)
+      ? state.boom_length
+      : meta.boom_lengths[meta.boom_lengths.length - 1];
+    const jl = meta.jib_lengths[0];
+    const off = meta.offsets[0];
+    patch({
+      lift_config: key,
+      counterweight: jibMeta.counterweight_required,
+      boom_length: boom,
+      jib_length: jl,
+      jib_offset: off,
+      radius: clampRadius(key, jl, boom, off, state.radius),
+    });
+  };
+
   return (
     <ScrollView contentContainerStyle={s.pad} keyboardShouldPersistTaps="handled">
       <Section title="Yük">
@@ -196,12 +305,79 @@ function InputsTab(props: {
         <Stepper label="Sapan / ekipman" unit="t" value={state.rigging_weight} step={0.1} onChange={(v) => set("rigging_weight", v)} />
       </Section>
 
+      {jibMeta && (
+        <Section title="Kaldırma Konfigürasyonu">
+          <Segmented
+            label="Konfigürasyon"
+            options={["T" as LiftConfig, ...jibMeta.configs.map((c) => c.key)]}
+            value={state.lift_config}
+            format={(v) => (v === "T" ? "Ana Bom (jibsiz)" : jibMeta.configs.find((c) => c.key === v)?.label ?? v)}
+            onChange={changeConfig}
+          />
+          {activeJib?.desc && (
+            <Text style={{ color: C.textFaint, fontSize: 12, marginTop: 4 }}>{activeJib.desc}</Text>
+          )}
+          {jibMeta.note && (
+            <Text style={{ color: C.textFaint, fontSize: 12, marginTop: 4 }}>{jibMeta.note}</Text>
+          )}
+        </Section>
+      )}
+
       <Section title="Bom & Radius">
-        <Segmented label="Bom uzunluğu (m)" options={crane.boom_lengths} value={state.boom_length} onChange={(v) => set("boom_length", v)} />
+        <Segmented
+          label="Bom uzunluğu (m)"
+          options={boomOptions}
+          value={state.boom_length}
+          onChange={(v) =>
+            patch(
+              inJib
+                ? { boom_length: v, radius: clampRadius(state.lift_config, state.jib_length, v, state.jib_offset, state.radius) }
+                : { boom_length: v },
+            )
+          }
+        />
         <Stepper label="Radius" unit="m" value={state.radius} step={0.5} min={1} onChange={(v) => set("radius", v)} />
-        <Segmented label="Denge ağırlığı (t)" options={crane.counterweight_options} value={state.counterweight} onChange={(v) => set("counterweight", v)} />
-        {pctOpts.length > 1 && (
+
+        {inJib ? (
+          <View style={{ marginBottom: 14 }}>
+            <Text style={{ color: C.textDim, fontSize: 13, marginBottom: 6, fontWeight: "600" }}>Denge ağırlığı (t)</Text>
+            <View style={{ backgroundColor: C.accent, borderRadius: 22, height: 44, alignItems: "center", justifyContent: "center", paddingHorizontal: 16, alignSelf: "flex-start" }}>
+              <Text style={{ color: "#1a1200", fontSize: 15, fontWeight: "800" }}>{jibMeta!.counterweight_required}t (jib gereği)</Text>
+            </View>
+          </View>
+        ) : (
+          <Segmented label="Denge ağırlığı (t)" options={crane.counterweight_options} value={state.counterweight} onChange={(v) => set("counterweight", v)} />
+        )}
+
+        {!inJib && pctOpts.length > 1 && (
           <Segmented label="Kapasite oranı (%)" options={pctOpts} value={state.capacity_pct} onChange={(v) => set("capacity_pct", v)} />
+        )}
+
+        {activeJib && (
+          <>
+            <Segmented
+              label="Jib uzunluğu (m)"
+              options={activeJib.jib_lengths}
+              value={state.jib_length}
+              onChange={(v) =>
+                patch({ jib_length: v, radius: clampRadius(state.lift_config, v, state.boom_length, state.jib_offset, state.radius) })
+              }
+            />
+            <Segmented
+              label="Jib ofset açısı (°)"
+              options={activeJib.offsets}
+              value={state.jib_offset}
+              onChange={(v) =>
+                patch({ jib_offset: v, radius: clampRadius(state.lift_config, state.jib_length, state.boom_length, v, state.radius) })
+              }
+            />
+            {(() => {
+              const rng = jibRange(state.lift_config, state.jib_length, state.boom_length, state.jib_offset);
+              return rng ? (
+                <Text style={{ color: C.textFaint, fontSize: 12 }}>Geçerli radius aralığı: {rng[0]}–{rng[1]} m</Text>
+              ) : null;
+            })()}
+          </>
         )}
       </Section>
 
@@ -209,6 +385,14 @@ function InputsTab(props: {
         <Segmented label="Ayak açıklığı (Lx × Ly)" options={crane.outrigger_configs} value={state.outrigger_config} onChange={(v) => set("outrigger_config", v)} />
         <Stepper label="Dönme açısı (slew)" unit="°" value={state.slew_angle} step={15} min={0} max={360} decimals={0} onChange={(v) => set("slew_angle", v)} />
       </Section>
+
+      {inJib && (
+        <View style={[s.card, { borderColor: C.orange, backgroundColor: "rgba(255,138,61,0.1)" }]}>
+          <Text style={{ color: C.orange, fontSize: 13, fontWeight: "700" }}>
+            ⚠ Jib modunda klerens/çarpışma hesaplanmaz — 2D ve Çarpışma sekmelerine bakın.
+          </Text>
+        </View>
+      )}
 
       <Section title="Yük & Engel geometrisi">
         <Stepper label="Yük yüksekliği" unit="m" value={state.load_height} step={0.5} onChange={(v) => set("load_height", v)} />
@@ -290,8 +474,27 @@ function CogTab(props: {
 function CollisionTab(props: {
   items: { id: string; source: string; target: string; severity: "ok" | "warning" | "collision"; clearance_m: number; message: string }[];
   error: string | null;
+  isJibMode: boolean;
 }) {
-  const { items, error } = props;
+  const { items, error, isJibMode } = props;
+  const scopeNote = (
+    <View style={[s.card, { backgroundColor: C.bg2 }]}>
+      <Text style={{ color: C.textDim, fontSize: 12.5 }}>
+        ℹ Bu kontrol yalnız vinç iç klerenslerini kapsar (bom/yük/kanca/halat). Çevre nesneleri
+        (bina, enerji hattı vb.) bu uygulamada tanımlanmaz — masaüstü uygulamada kontrol edilir.
+      </Text>
+    </View>
+  );
+
+  if (isJibMode) {
+    return (
+      <ScrollView contentContainerStyle={s.pad}>
+        <JibScopeNotice />
+        {scopeNote}
+      </ScrollView>
+    );
+  }
+
   if (error) return <ScrollView contentContainerStyle={s.pad}><Empty text={error} /></ScrollView>;
   const active = items.filter((i) => i.severity !== "ok");
   const ok = items.filter((i) => i.severity === "ok");
@@ -300,6 +503,7 @@ function CollisionTab(props: {
 
   return (
     <ScrollView contentContainerStyle={s.pad}>
+      {scopeNote}
       {active.length === 0 ? (
         <View style={[s.card, { alignItems: "center", paddingVertical: 28 }]}>
           <Text style={{ fontSize: 40 }}>✓</Text>

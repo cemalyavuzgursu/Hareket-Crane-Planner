@@ -9,6 +9,22 @@ interface Props {
   set: (patch: Partial<UIState>) => void;
 }
 
+/**
+ * Bazı vinç verilerinde aynı görünen bom uzunluğu için 0.01 ötelenmiş ikinci
+ * bir anahtar bulunur (ör. 29.4 / 29.41) — bunlar üreticinin FARKLI yük
+ * tablosuna sahip iki ayrı bom varyantıdır (veri modelinde anahtar aynı
+ * kalmalı, yalnızca kullanıcıya gösterilen etiket ayrıştırılır).
+ */
+function boomLabel(b: number, allBooms: number[]): string {
+  const rounded = Math.round(b * 10) / 10;
+  const group = allBooms
+    .filter((x) => Math.abs(Math.round(x * 10) / 10 - rounded) < 1e-9)
+    .sort((a, c) => a - c);
+  if (group.length <= 1) return `${b} m`;
+  const idx = group.findIndex((x) => Math.abs(x - b) < 1e-9);
+  return `${rounded} m (varyant ${idx + 1})`;
+}
+
 export default function ConfigSidebar({ cranes, crane, state, set }: Props) {
   const jibMeta = crane.jib_configs;
   const activeJib = jibMeta?.configs.find((c) => c.key === state.lift_config);
@@ -137,7 +153,7 @@ export default function ConfigSidebar({ cranes, crane, state, set }: Props) {
         >
           {boomOptions.map((b) => (
             <option key={b} value={b}>
-              {b} m
+              {boomLabel(b, boomOptions)}
             </option>
           ))}
         </select>

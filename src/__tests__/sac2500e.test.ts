@@ -45,8 +45,10 @@ describe("SANY SAC2500E — yük tablosu (broşür hücreleri)", () => {
     },
   );
 
-  it("radius interpolasyonu: cw80 bom13.9 r9.5 = (73.8+64.0)/2 = 68.9", () => {
-    expect(loadChartLookup(crane, 80, 100, 13.9, 9.5)).toBeCloseTo(68.9, 2);
+  it("ara radius step-down: cw80 bom13.9 r9.5 → bir büyük yarıçap r10'un kapasitesi (64.0)", () => {
+    // Excel/broşür lineer interpole ederdi ((73.8+64.0)/2=68.9); step-down bilinçli
+    // sapma: konveks eğride güvenli tarafta kalmak için r10'un kapasitesi alınır.
+    expect(loadChartLookup(crane, 80, 100, 13.9, 9.5)).toBeCloseTo(64.0, 2);
   });
 
   it("amblem (*) noktası 360° tablodan çıkarıldı: cw80 bom13.9 min radius = 3m", () => {

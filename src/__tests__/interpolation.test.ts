@@ -1,4 +1,6 @@
-// Faz 2 — Load chart doğrusal interpolasyon testleri + sınır durumları.
+// Faz 2 — Load chart "step-down" interpolasyon testleri + sınır durumları.
+// Politika: ara yarıçapta BİR BÜYÜK yarıçapın kapasitesi döner (konveks eğride
+// doğrusal interpolasyon fazla okur; step-down her zaman güvenli taraftadır).
 
 import { describe, it, expect } from "vitest";
 import {
@@ -10,7 +12,7 @@ import type { ChartPoint, CraneModel } from "../engine/types.js";
 
 const crane = ltm1250 as unknown as CraneModel;
 
-describe("interpolateCapacity", () => {
+describe("interpolateCapacity (step-down politikası)", () => {
   const curve: ChartPoint[] = [
     [3, 275],
     [4, 220],
@@ -24,11 +26,11 @@ describe("interpolateCapacity", () => {
     expect(interpolateCapacity(curve, 3)).toBe(275);
   });
 
-  it("iki nokta arasında doğrusal interpole eder", () => {
-    // 4 ile 5 arası orta nokta: (220+176)/2 = 198
-    expect(interpolateCapacity(curve, 4.5)).toBeCloseTo(198, 6);
-    // 9 ile 10 arası %30: 101 + 0.3*(92-101) = 98.3
-    expect(interpolateCapacity(curve, 9.3)).toBeCloseTo(98.3, 6);
+  it("ara değerde bir büyük yarıçapın kapasitesini döner (step-down)", () => {
+    // 4 ile 5 arası: bir büyük yarıçap 5 → kapasite 176
+    expect(interpolateCapacity(curve, 4.5)).toBe(176);
+    // 9 ile 10 arası: bir büyük yarıçap 10 → kapasite 92
+    expect(interpolateCapacity(curve, 9.3)).toBe(92);
   });
 
   it("sıralanmamış girişte de doğru çalışır", () => {
@@ -39,7 +41,7 @@ describe("interpolateCapacity", () => {
       [9, 101],
       [4, 220],
     ];
-    expect(interpolateCapacity(shuffled, 4.5)).toBeCloseTo(198, 6);
+    expect(interpolateCapacity(shuffled, 4.5)).toBe(176);
   });
 
   it("aralık dışında hata verir (ekstrapolasyon yok)", () => {
@@ -53,9 +55,11 @@ describe("loadChartLookup (LTM 1250, gerçek veri)", () => {
     expect(loadChartLookup(crane, 40, 85, 16.5, 9)).toBe(101);
   });
 
-  it("ara radius interpole edilir (8.5↔9: 105.5↔101)", () => {
-    // radius 8.75 → 105.5 + 0.5*(101-105.5) = 103.25
-    expect(loadChartLookup(crane, 40, 85, 16.5, 8.75)).toBeCloseTo(103.25, 4);
+  it("ara radius için bir büyük yarıçapın kapasitesini döner (8.5↔9: step-down → 9'un kapasitesi 101)", () => {
+    // Excel lineer interpole ediyordu (105.5 + 0.5*(101-105.5) = 103.25);
+    // step-down bilinçli sapma: konveks eğride güvenli tarafta kalmak için
+    // radius=8.75, bir büyük tablo noktası olan 9.0'ın kapasitesini (101) alır.
+    expect(loadChartLookup(crane, 40, 85, 16.5, 8.75)).toBe(101);
   });
 
   it("eksik tablo (yüzde) için anlamlı hata verir", () => {

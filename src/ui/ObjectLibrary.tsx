@@ -14,7 +14,7 @@ interface KindMeta {
   label: string;
   defaults: Pick<
     SceneObject,
-    "x" | "z" | "width" | "depth" | "height"
+    "x" | "z" | "width" | "depth" | "height" | "y"
   >;
 }
 
@@ -47,7 +47,8 @@ const KIND_META: KindMeta[] = [
     kind: "powerline",
     icon: "⚡",
     label: "Enerji Hattı",
-    defaults: { x: 14, z: 0, width: 0.3, depth: 20, height: 10 },
+    // Asılı hat: taban kotu (y) 10m'de, ince bir kutu (0-10m arası dolu DEĞİL).
+    defaults: { x: 14, z: 0, width: 0.3, depth: 20, height: 1, y: 10 },
   },
 ];
 
@@ -141,6 +142,7 @@ export default function ObjectLibrary({
       width: meta.defaults.width,
       depth: meta.defaults.depth,
       height: meta.defaults.height,
+      y: meta.defaults.y ?? 0,
     };
     onChange([...objects, obj]);
   }
@@ -345,7 +347,7 @@ export default function ObjectLibrary({
                 <div
                   style={{
                     display: "grid",
-                    gridTemplateColumns: "repeat(6, 1fr)",
+                    gridTemplateColumns: "repeat(auto-fill, minmax(64px, 1fr))",
                     gap: 6,
                   }}
                 >
@@ -358,6 +360,11 @@ export default function ObjectLibrary({
                     label="z (m)"
                     value={o.z}
                     onChange={(v) => updateObject(o.id, { z: v })}
+                  />
+                  <MiniNum
+                    label="Taban kotu y (m)"
+                    value={o.y ?? 0}
+                    onChange={(v) => updateObject(o.id, { y: v })}
                   />
                   <MiniNum
                     label="En (m)"
@@ -383,7 +390,21 @@ export default function ObjectLibrary({
                     step={15}
                     onChange={(v) => updateObject(o.id, { rotationY: v })}
                   />
+                  {o.kind === "powerline" && (
+                    <MiniNum
+                      label="Gerilim (kV)"
+                      value={o.voltage_kv ?? 0}
+                      min={0}
+                      step={1}
+                      onChange={(v) => updateObject(o.id, { voltage_kv: v || undefined })}
+                    />
+                  )}
                 </div>
+                {o.kind === "powerline" && !o.voltage_kv && (
+                  <div style={{ fontSize: 10, color: "var(--text-faint)", marginTop: 6 }}>
+                    Gerilim girilmezse muhafazakâr (en geniş) emniyet marjı uygulanır.
+                  </div>
+                )}
               </div>
             );
           })}

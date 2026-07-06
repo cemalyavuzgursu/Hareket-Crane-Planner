@@ -1,26 +1,31 @@
 // (D) ÇARPIŞMA ALGILAMA — YENİ. Crane Planner 2.0 "collision detection".
 //
-// İki katman:
+// Katmanlar:
 //   1) Bom ↔ ana engel / yük: mevcut klerens sonuçlarından (clearance.ts) türetilir.
-//   2) Bom / yük / kanca ↔ çevre nesneleri (nesne kütüphanesi): 3D segment–kutu
-//      (AABB) en yakın mesafe testi.
+//   2) Bom / yük / kanca / halat ↔ çevre nesneleri (nesne kütüphanesi): nesnenin
+//      rotationY'si dikkate alınarak nesnenin yerel çerçevesinde AABB mesafesi
+//      (bom/kanca/halat için) ya da kutu↔kutu (OBB) mesafesi (yük için).
+//   3) Kuyruk savrulması: karşı ağırlığın slew merkezi etrafında süpürdüğü
+//      dairesel bant ile çevre nesneleri.
 //
 // Çıktı saf bir uyarı listesidir; UI renklendirme ve raporlama için kullanır.
-// Hiçbir şey atmaz: geçersiz girdi "ok" gibi ele alınır (planlama güvenliği için
-// kritik uyarılar klerens katmanından zaten gelir).
+// Hiçbir şey atmaz (yalnızca alan-dışı geometrik girdiler clearance.ts'te hata
+// fırlatır): geçersiz girdi burada "ok" gibi ele alınır.
 
 import type { GeometryConstants, SceneObject } from "./types.js";
 import type { ClearanceResult } from "./clearance.js";
 
-/** Negatif = çarpışma; bu eşiğin altındaki pozitif klerens = uyarı (m). */
+/** Negatif = çarpışma; bu eşiğin altındaki pozitif klerens = uyarı (m). Genel
+ * nesneler ve ana engel/yük için varsayılan. Enerji hatları için marginForObject
+ * gerilime göre daha büyük bir değer döner. */
 export const SAFETY_MARGIN_M = 0.5;
 
 export type CollisionSeverity = "ok" | "warning" | "collision";
 
 export interface CollisionItem {
   id: string;
-  /** Hangi vinç parçası: bom / yük / kanca / kaldırma halatı. */
-  source: "boom" | "load" | "hook" | "rope";
+  /** Hangi vinç parçası: bom / yük / kanca / kaldırma halatı / kuyruk savrulması. */
+  source: "boom" | "load" | "hook" | "rope" | "tail";
   /** Neyle: ana engel, zemin, ya da çevre nesnesi etiketi. */
   target: string;
   severity: CollisionSeverity;
@@ -46,6 +51,12 @@ export interface CollisionInputs {
   load_diameter: number;
   hook_height: number; // kanca bloğu yüksekliği (klerens.max_hook_height yakını)
   objects: SceneObject[];
+  /** Kuyruk (karşı ağırlık) dönme yarıçapı (m). Verilmezse kuyruk savrulma
+   * kontrolü atlanır. */
+  tail_radius_m?: number;
+  /** Üst yapı güverte yüksekliği (m) — kuyruğun süpürdüğü düşey bandın alt
+   * sınırı (bant: [bu değer, bu değer+2.5m]). Verilmezse kontrol atlanır. */
+  superstructure_height_m?: number;
 }
 
 interface Vec3 {
@@ -72,6 +83,10 @@ function toWorld(lx: number, ly: number, lz: number, slewRad: number): Vec3 {
 /**
  * Vinç geometrisinin dünya-çerçevesi anahtar noktaları (Crane3D ile aynı kabul):
  * bom dibi (-boom_offset, machine+crib), bom ucu, yük merkezi.
+ *
+ * Yük merkezi klerens (Excel) konvansiyonuyla hizalıdır: yük kutusu yatayda
+ * [radius−load_diameter, radius] aralığındadır (merkez radius−d/2); kanca ise
+ * x=radius'ta kalır (sapan/halat kancadan yükün uzak kenarına eğik iner).
  */
 export function craneWorldGeometry(inp: CollisionInputs): {
   boomFoot: Vec3;
@@ -79,7 +94,7 @@ export function craneWorldGeometry(inp: CollisionInputs): {
   loadCenter: Vec3;
   hookCenter: Vec3;
 } {
-  const { g, boom_length, radius, gama, slew_angle, load_height } = inp;
+  const { g, boom_length, radius, gama, slew_angle, load_height, load_diameter } = inp;
   const slewRad = slew_angle * DEG;
   const footY = g.machine_ground_height + g.cribbing_height;
   const footX = -g.boom_offset;
@@ -89,7 +104,7 @@ export function craneWorldGeometry(inp: CollisionInputs): {
   return {
     boomFoot: toWorld(footX, footY, 0, slewRad),
     boomTip: toWorld(tipXLocal, tipYLocal, 0, slewRad),
-    loadCenter: toWorld(radius, Math.max(load_height, 0.1) / 2, 0, slewRad),
+    loadCenter: toWorld(radius - load_diameter / 2, Math.max(load_height, 0.1) / 2, 0, slewRad),
     // Kanca bloğu yük üstünden hook_height kadar yukarı uzanır; merkezi ortası.
     hookCenter: toWorld(radius, load_height + inp.hook_height / 2, 0, slewRad),
   };
@@ -119,9 +134,126 @@ function segmentToBoxDistance(a: Vec3, b: Vec3, center: Vec3, half: Vec3, sample
   return min;
 }
 
-function severityFor(clearance: number): CollisionSeverity {
+/** Nesnenin yerel çerçevesi: merkez orijinde (taban kotu dahil), yarı-ölçüler
+ * width/depth/height'tan. rotationY bu çerçeveye göre dünya çerçevesine döner. */
+function objectLocalFrame(o: SceneObject): { center: Vec3; half: Vec3 } {
+  return {
+    center: { x: 0, y: (o.y ?? 0) + o.height / 2, z: 0 },
+    half: { x: o.width / 2, y: o.height / 2, z: o.depth / 2 },
+  };
+}
+
+/** Dünya çerçevesindeki bir noktayı nesnenin yerel (rotationY'siz) çerçevesine
+ * çevirir: merkeze göre kaydır, sonra -rotationY kadar döndür. */
+function toObjectLocal(p: Vec3, o: SceneObject): Vec3 {
+  const rot = (o.rotationY ?? 0) * DEG;
+  const dx = p.x - o.x;
+  const dz = p.z - o.z;
+  const c = Math.cos(-rot);
+  const s = Math.sin(-rot);
+  return { x: dx * c - dz * s, y: p.y, z: dx * s + dz * c };
+}
+
+/** Yatay düzlemde döndürülmüş dikdörtgen taban × düşey aralık (dikey prizma).
+ * Yük kutusu (slew'e göre döner) ve çevre nesneleri (rotationY'ye göre döner)
+ * bu ortak temsille karşılaştırılır. */
+interface Prism {
+  cx: number;
+  cz: number;
+  hx: number; // yerel x ekseni yarı-genişlik
+  hz: number; // yerel z ekseni yarı-genişlik
+  rot: number; // yerel x ekseninin dünya X eksenine göre açısı (rad)
+  yMin: number;
+  yMax: number;
+}
+
+function prismFromObject(o: SceneObject): Prism {
+  return {
+    cx: o.x,
+    cz: o.z,
+    hx: o.width / 2,
+    hz: o.depth / 2,
+    rot: (o.rotationY ?? 0) * DEG,
+    yMin: o.y ?? 0,
+    yMax: (o.y ?? 0) + o.height,
+  };
+}
+
+function loadPrism(inp: CollisionInputs): Prism {
+  const slewRad = inp.slew_angle * DEG;
+  const half = Math.max(inp.load_diameter, 0.3) / 2;
+  const localX = inp.radius - inp.load_diameter / 2;
+  const c = toWorld(localX, 0, 0, slewRad);
+  return {
+    cx: c.x,
+    cz: c.z,
+    hx: half,
+    hz: half,
+    rot: slewRad,
+    yMin: 0,
+    yMax: Math.max(inp.load_height, 0.1),
+  };
+}
+
+/**
+ * İki dikey prizma arasında en yakın mesafe (SAT: her prizmanın 2 yatay eksen
+ * normali + düşey eksen — toplam 5 aday eksen). Bir eksende ayrım varsa
+ * prizmalar kesin olarak ayrıktır (bu yön tam/exact); ayrık durumda mesafe en
+ * büyük ayrım ekseninin değeridir (kenar-kenar durumunda tam, köşe-köşe
+ * durumunda muhafazakâr bir alt sınırdır — güvenlik uygulaması için kabul
+ * edilir). Tüm eksenlerde örtüşüyorsa negatif değer (en küçük yerleştirme
+ * derinliği, standart MTV) döner.
+ */
+function prismDistance(a: Prism, b: Prism): number {
+  const dcx = b.cx - a.cx;
+  const dcz = b.cz - a.cz;
+
+  const axisSep = (axisRad: number): number => {
+    const ax = Math.cos(axisRad);
+    const az = Math.sin(axisRad);
+    const centerProj = dcx * ax + dcz * az;
+    const halfA =
+      a.hx * Math.abs(Math.cos(axisRad - a.rot)) + a.hz * Math.abs(Math.sin(axisRad - a.rot));
+    const halfB =
+      b.hx * Math.abs(Math.cos(axisRad - b.rot)) + b.hz * Math.abs(Math.sin(axisRad - b.rot));
+    return Math.abs(centerProj) - (halfA + halfB);
+  };
+
+  const horizSep = Math.max(
+    axisSep(a.rot),
+    axisSep(a.rot + Math.PI / 2),
+    axisSep(b.rot),
+    axisSep(b.rot + Math.PI / 2),
+  );
+  const vGap = Math.max(a.yMin - b.yMax, b.yMin - a.yMax);
+
+  if (horizSep <= 0 && vGap <= 0) {
+    // Her iki boyutta da örtüşme: en küçük çıkış derinliği (standart MTV).
+    return Math.max(horizSep, vGap);
+  }
+  return Math.sqrt(Math.max(horizSep, 0) ** 2 + Math.max(vGap, 0) ** 2);
+}
+
+/** Enerji hattı (powerline) için mevzuata göre yaklaşık emniyet marjı (m);
+ * diğer nesne türleri için sabit SAFETY_MARGIN_M kullanılır. voltage_kv
+ * verilmemişse muhafazakâr (yüksek) bir varsayım uygulanır. */
+function marginForObject(o: SceneObject): number {
+  if (o.kind !== "powerline") return SAFETY_MARGIN_M;
+  const kv = o.voltage_kv;
+  if (kv == null) return 6.1; // gerilim bilinmiyor → muhafazakâr varsayım
+  if (kv <= 50) return 3.05;
+  if (kv <= 200) return 4.6;
+  if (kv <= 350) return 6.1;
+  return 7.6;
+}
+
+function marginNote(margin: number): string {
+  return margin !== SAFETY_MARGIN_M ? ` (emniyet marjı ${margin.toFixed(2)}m)` : "";
+}
+
+function severityFor(clearance: number, margin: number = SAFETY_MARGIN_M): CollisionSeverity {
   if (clearance < 0) return "collision";
-  if (clearance < SAFETY_MARGIN_M) return "warning";
+  if (clearance < margin) return "warning";
   return "ok";
 }
 
@@ -180,61 +312,108 @@ export function computeCollisions(
         : "Sapan/kaldırma yüksekliği payı",
   });
 
-  // ── 4) Çevre nesneleri ↔ bom / yük / kanca ─────────────────────────────────
+  // ── 4) Çevre nesneleri ↔ bom / yük / kanca / halat / kuyruk ─────────────────
   const geo = craneWorldGeometry(inp);
+  const loadPr = loadPrism(inp);
   const boomHalfThick = inp.g.boom_thickness / 2;
-  const loadRadius = Math.max(inp.load_diameter, 0.3) / 2;
   const HOOK_HALF = 0.3; // kanca bloğu yaklaşık yarı-ölçüsü (m)
   const ROPE_HALF = 0.05; // halat yarıçap payı (m)
+  const tailActive = inp.tail_radius_m != null && inp.superstructure_height_m != null;
 
   for (const o of inp.objects) {
-    const center: Vec3 = { x: o.x, y: o.height / 2, z: o.z };
-    const half: Vec3 = { x: o.width / 2, y: o.height / 2, z: o.depth / 2 };
+    const { center, half } = objectLocalFrame(o);
+    const margin = marginForObject(o);
+    const note = marginNote(margin);
 
-    // Bom (kalınlık payı düşülür)
-    const dBoom = segmentToBoxDistance(geo.boomFoot, geo.boomTip, center, half) - boomHalfThick;
+    // Bom (kalınlık payı düşülür) — nesnenin rotationY'si hesaba katılır:
+    // uç noktaları nesnenin yerel çerçevesine çevrilip AABB mesafesi alınır.
+    const bFoot = toObjectLocal(geo.boomFoot, o);
+    const bTip = toObjectLocal(geo.boomTip, o);
+    const dBoom = segmentToBoxDistance(bFoot, bTip, center, half) - boomHalfThick;
     items.push({
       id: `obj-${o.id}-boom`,
       source: "boom",
       target: o.label,
-      severity: severityFor(dBoom),
+      severity: severityFor(dBoom, margin),
       clearance_m: dBoom,
-      message: dBoom < 0 ? `Bom "${o.label}" ile çakışıyor` : `Bom ↔ ${o.label}`,
+      message: dBoom < 0 ? `Bom "${o.label}" ile çakışıyor` : `Bom ↔ ${o.label}${note}`,
     });
 
-    // Yük (yarıçap payı düşülür)
-    const dLoad = pointToBoxDistance(geo.loadCenter, center, half) - loadRadius;
+    // Yük (kutu ↔ kutu; klerens konvansiyonuyla hizalı [radius−d, radius] kutusu,
+    // slew'e göre döner) — nesnenin rotationY'siyle birlikte OBB-OBB mesafesi.
+    const dLoad = prismDistance(loadPr, prismFromObject(o));
     items.push({
       id: `obj-${o.id}-load`,
       source: "load",
       target: o.label,
-      severity: severityFor(dLoad),
+      severity: severityFor(dLoad, margin),
       clearance_m: dLoad,
-      message: dLoad < 0 ? `Yük "${o.label}" ile çakışıyor` : `Yük ↔ ${o.label}`,
+      message: dLoad < 0 ? `Yük "${o.label}" ile çakışıyor` : `Yük ↔ ${o.label}${note}`,
     });
 
     // Kanca bloğu (yük üstünde asılı) — özellikle enerji hattı gibi
     // yükseklikteki tehlikeler için bom/yük kontrolünün kaçırdığı bölge.
-    const dHook = pointToBoxDistance(geo.hookCenter, center, half) - HOOK_HALF;
+    const hookLocal = toObjectLocal(geo.hookCenter, o);
+    const dHook = pointToBoxDistance(hookLocal, center, half) - HOOK_HALF;
     items.push({
       id: `obj-${o.id}-hook`,
       source: "hook",
       target: o.label,
-      severity: severityFor(dHook),
+      severity: severityFor(dHook, margin),
       clearance_m: dHook,
-      message: dHook < 0 ? `Kanca "${o.label}" ile çakışıyor` : `Kanca ↔ ${o.label}`,
+      message: dHook < 0 ? `Kanca "${o.label}" ile çakışıyor` : `Kanca ↔ ${o.label}${note}`,
     });
 
     // Kaldırma halatı (bom ucu → kanca, ~düşey doğru parçası)
-    const dRope = segmentToBoxDistance(geo.boomTip, geo.hookCenter, center, half) - ROPE_HALF;
+    const dRope = segmentToBoxDistance(bTip, hookLocal, center, half) - ROPE_HALF;
     items.push({
       id: `obj-${o.id}-rope`,
       source: "rope",
       target: o.label,
-      severity: severityFor(dRope),
+      severity: severityFor(dRope, margin),
       clearance_m: dRope,
-      message: dRope < 0 ? `Kaldırma halatı "${o.label}" ile çakışıyor` : `Halat ↔ ${o.label}`,
+      message: dRope < 0 ? `Kaldırma halatı "${o.label}" ile çakışıyor` : `Halat ↔ ${o.label}${note}`,
     });
+
+    // Kuyruk savrulması (tail swing): karşı ağırlık, slew merkezi etrafında
+    // tail_radius_m yarıçapında, üst yapı güverte bandında ([h, h+2.5m]) döner.
+    // Basit/muhafazakâr model: mevcut slew açısından bağımsız olarak, nesne bu
+    // düşey bantla kesişiyorsa (her an oraya dönebileceği için) yatay mesafe
+    // kontrol edilir.
+    if (tailActive) {
+      const bandMin = inp.superstructure_height_m as number;
+      const bandMax = bandMin + 2.5;
+      const oMin = o.y ?? 0;
+      const oMax = oMin + o.height;
+      const yGap = Math.max(bandMin - oMax, oMin - bandMax, 0);
+      if (yGap > 0) {
+        items.push({
+          id: `obj-${o.id}-tail`,
+          source: "tail",
+          target: o.label,
+          severity: "ok",
+          clearance_m: yGap,
+          message:
+            `"${o.label}" kuyruk savrulma bandının (${bandMin.toFixed(1)}–${bandMax.toFixed(1)}m) ` +
+            `dışında (düşey boşluk ${yGap.toFixed(2)}m)`,
+        });
+      } else {
+        const horizDist = Math.hypot(o.x, o.z);
+        const halfDiag = Math.hypot(o.width / 2, o.depth / 2);
+        const dTail = horizDist - halfDiag - (inp.tail_radius_m as number);
+        items.push({
+          id: `obj-${o.id}-tail`,
+          source: "tail",
+          target: o.label,
+          severity: severityFor(dTail, margin),
+          clearance_m: dTail,
+          message:
+            dTail < 0
+              ? `Kuyruk savrulması "${o.label}" ile çakışıyor`
+              : `Kuyruk savrulması ↔ ${o.label}${note}`,
+        });
+      }
+    }
   }
 
   const worst = items.reduce<CollisionSeverity>((w, it) => worstOf(w, it.severity), "ok");

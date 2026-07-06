@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import type { UIState } from "./state";
+import { BEARING_PRESETS, type UIState } from "./state";
 
 interface Props {
   state: UIState;
@@ -81,7 +81,48 @@ export default function InputForm({ state, set }: Props) {
           <NumField label="Engel Yüksekliği" unit="m" min={0} value={state.obstacle_height} onChange={(v) => set({ obstacle_height: v })} />
           <NumField label="Engel Genişliği" unit="m" min={0} value={state.obstacle_width} onChange={(v) => set({ obstacle_width: v })} />
         </div>
-        <NumField label="Engel Yatay Uzaklığı" unit="m" value={state.obstacle_distance} onChange={(v) => set({ obstacle_distance: v })} />
+        <NumField label="Engel Yatay Uzaklığı" unit="m" min={0} value={state.obstacle_distance} onChange={(v) => set({ obstacle_distance: v })} />
+      </div>
+
+      <div className="card" style={{ margin: 0 }}>
+        <h3>🧱 Zemin & Takoz</h3>
+        <NumField
+          label="Takoz Temas Alanı (Pad)"
+          unit="m²"
+          min={0.01}
+          step={0.1}
+          value={state.pad_area_m2}
+          onChange={(v) => set({ pad_area_m2: v })}
+        />
+        <div className="field">
+          <label>Zemin Sınıfı (hızlı seçim)</label>
+          <select
+            value={
+              BEARING_PRESETS.some((p) => p.value === state.allowable_bearing_t_m2)
+                ? String(state.allowable_bearing_t_m2)
+                : "custom"
+            }
+            onChange={(e) => {
+              if (e.target.value === "custom") return;
+              set({ allowable_bearing_t_m2: parseFloat(e.target.value) });
+            }}
+          >
+            {BEARING_PRESETS.map((p) => (
+              <option key={p.value} value={p.value}>
+                {p.label}
+              </option>
+            ))}
+            <option value="custom">Özel (aşağıda gir)</option>
+          </select>
+        </div>
+        <NumField
+          label="İzin Verilen Zemin Taşıma Basıncı"
+          unit="t/m²"
+          min={0.1}
+          step={1}
+          value={state.allowable_bearing_t_m2}
+          onChange={(v) => set({ allowable_bearing_t_m2: v })}
+        />
       </div>
     </div>
   );

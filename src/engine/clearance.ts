@@ -68,19 +68,46 @@ export function computeClearance(
     g.cribbing_height;
 
   // Boma ENGEL klerensi
+  // Alan koruması: payda ≤ 0 ise engel, bom açıklığının (boom_offset+radius)
+  // ötesinde demektir — L ve beta formülleri bu bölgede tanımsız/ters işaret
+  // üretir. Not: payın işareti (engel makine yüksekliğinin altındaysa negatif
+  // çıkar) GEÇERLİ ve mevcut davranıştır, ona dokunulmaz.
+  const betaDenom = g.boom_offset + radius - obstacle_distance;
+  if (betaDenom <= 0) {
+    throw new Error(
+      `Engel mesafesi (${obstacle_distance}m) bom açıklığının (boom_offset+radius ≈ ` +
+        `${(g.boom_offset + radius).toFixed(2)}m) ötesinde; boma engel klerens formülü ` +
+        `bu bölgede geçerli değil.`,
+    );
+  }
   const beta = Math.atan(
-    (obstacle_height - g.machine_ground_height - g.cribbing_height) /
-      (g.boom_offset + radius - obstacle_distance),
+    (obstacle_height - g.machine_ground_height - g.cribbing_height) / betaDenom,
   );
   const L = (radius + g.boom_offset - obstacle_distance) / Math.cos(beta);
   const clearance_to_obstacle =
     L * Math.sin(alfa + gama - beta) - g.boom_thickness;
 
   // Boma YÜK klerensi
-  const teta = Math.atan(
-    (load_height + obstacle_height - g.cribbing_height - g.machine_ground_height) /
-      (radius - load_diameter + g.boom_offset),
-  );
+  // Alan koruması: payda ≤ 0 ise yük çapı + bom ofseti radius'u aşıyor demektir
+  // (yük merkezi bom ekseninin gerisine geçer) — teta/k formülleri bu bölgede
+  // tanımsız/ters işaret üretir. load_height===0 ise bu değerler zaten
+  // kullanılmadan clearance_to_obstacle'a düşülür (aşağıda), o yüzden yalnızca
+  // gerçekten tüketildiği durumda hata fırlatılır.
+  const tetaDenom = radius - load_diameter + g.boom_offset;
+  if (tetaDenom <= 0 && load_height !== 0) {
+    throw new Error(
+      `Yük çapı (${load_diameter}m), radius (${radius}m) + boom_offset'e göre çok büyük; ` +
+        `boma yük klerens formülü bu bölgede geçerli değil (radius − load_diameter + ` +
+        `boom_offset ≤ 0).`,
+    );
+  }
+  const teta =
+    tetaDenom > 0
+      ? Math.atan(
+          (load_height + obstacle_height - g.cribbing_height - g.machine_ground_height) /
+            tetaDenom,
+        )
+      : NaN;
   const k =
     (load_height + obstacle_height - g.machine_ground_height - g.cribbing_height) /
     Math.sin(teta);

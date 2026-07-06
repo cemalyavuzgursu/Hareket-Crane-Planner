@@ -9,9 +9,11 @@
  *   - .obj         : three OBJLoader → GLB
  *   - .ifc         : web-ifc (WASM) geometri çıkarımı → GLB
  *
- * Not: web-ifc WASM dosyası unpkg CDN'den yüklenir (çevrimiçi gerekir). IFC
- * koordinatları gerçek-dünya ölçeğinde olabilir; Crane3D modeli ilan edilen
- * sınırlayıcı kutuya ölçeklediği için bu sorun olmaz.
+ * Not: web-ifc WASM dosyası public/wasm/ altından yerel olarak yüklenir
+ * (scripts/copy-wasm.mjs her dev/build öncesi node_modules/web-ifc'ten
+ * kopyalar) — saha kullanımı internetsiz çalışır, CDN'e bağımlılık yoktur.
+ * IFC koordinatları gerçek-dünya ölçeğinde olabilir; Crane3D modeli ilan
+ * edilen sınırlayıcı kutuya ölçeklediği için bu sorun olmaz.
  */
 import {
   BufferGeometry,
@@ -73,8 +75,12 @@ async function getIfcApi(): Promise<any> {
   ifcApiPromise = (async () => {
     const { IfcAPI } = await import("web-ifc");
     const api = new IfcAPI();
-    // WASM'ı CDN'den, sürüme kilitli mutlak yol ile yükle.
-    api.SetWasmPath("https://unpkg.com/web-ifc@0.0.57/", true);
+    // WASM'ı yerelden yükle (public/wasm/ — bkz. scripts/copy-wasm.mjs).
+    // BASE_URL: dev'de "/", build/Electron'da "./" olur (vite relative base).
+    // absolute=true: web-ifc'in emscripten prefix'ini (bundle chunk konumu)
+    // atlar; yol doğrudan document konumuna göre çözülür (dev'de kök, Electron
+    // file://'da dist/ klasörüne göre).
+    api.SetWasmPath(`${import.meta.env.BASE_URL}wasm/`, true);
     await api.Init();
     return api;
   })();
