@@ -55,18 +55,26 @@
   Page custom hkShortcutsPageCreate hkShortcutsPageLeave
 !macroend
 
-; Kurulum sırasında, seçime göre kısayolları oluştur.
+; Kurulum sırasında, seçime göre kısayolları oluştur. Otomatik güncellemede
+; (sessiz, --updated) sayfa gösterilmez ve mevcut kısayollara dokunulmaz.
 !macro customInstall
+  ${If} ${isUpdated}
+    Goto hkSkipShortcuts
+  ${EndIf}
   ${If} $HkMakeDesktop == 1
     CreateShortCut "$DESKTOP\${PRODUCT_NAME}.lnk" "$INSTDIR\${PRODUCT_FILENAME}.exe"
   ${EndIf}
   ${If} $HkMakeStartMenu == 1
     CreateShortCut "$SMPROGRAMS\${PRODUCT_NAME}.lnk" "$INSTDIR\${PRODUCT_FILENAME}.exe"
   ${EndIf}
+  hkSkipShortcuts:
 !macroend
 
-; Kaldırırken kısayolları temizle.
+; Kaldırırken kısayolları temizle — güncelleme sırasında (eski sürümün sessiz
+; kaldırılması, --updated) SİLME: kullanıcının kısayolları korunur.
 !macro customUnInstall
-  Delete "$DESKTOP\${PRODUCT_NAME}.lnk"
-  Delete "$SMPROGRAMS\${PRODUCT_NAME}.lnk"
+  ${IfNot} ${isUpdated}
+    Delete "$DESKTOP\${PRODUCT_NAME}.lnk"
+    Delete "$SMPROGRAMS\${PRODUCT_NAME}.lnk"
+  ${EndIf}
 !macroend

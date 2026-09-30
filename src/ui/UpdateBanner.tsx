@@ -16,14 +16,14 @@ export default function UpdateBanner({ u }: { u: UpdaterState }) {
   );
 
   if (u.status === "available") {
+    // Otomatik indirme açık: indirme kendiliğinden başlar, onay gerekmez.
     return wrap(
       <>
         <span className="ub-text">
-          ⬆ {t("Yeni sürüm mevcut{ver}. Şimdi güncellemek ister misiniz?", { ver: u.newVersion ? ` (v${u.newVersion})` : "" })}
+          ⬆ {t("Yeni sürüm bulundu{ver} — arka planda indiriliyor…", { ver: u.newVersion ? ` (v${u.newVersion})` : "" })}
         </span>
         <div className="ub-actions">
-          <button className="btn primary ub-btn" onClick={u.download}>{t("Şimdi Güncelle")}</button>
-          <button className="btn ghost ub-btn" onClick={u.dismiss}>{t("Sonra")}</button>
+          <button className="btn ghost ub-btn" onClick={u.dismiss}>{t("Gizle")}</button>
         </div>
       </>,
     );
@@ -34,6 +34,9 @@ export default function UpdateBanner({ u }: { u: UpdaterState }) {
       <>
         <span className="ub-text">⬇ {t("Güncelleme indiriliyor… %{p}", { p: u.progress })}</span>
         <div className="ub-progress"><div style={{ width: `${u.progress}%` }} /></div>
+        <div className="ub-actions">
+          <button className="btn ghost ub-btn" onClick={u.dismiss}>{t("Gizle")}</button>
+        </div>
       </>,
     );
   }
@@ -42,11 +45,11 @@ export default function UpdateBanner({ u }: { u: UpdaterState }) {
     return wrap(
       <>
         <span className="ub-text">
-          ✓ {t("Güncelleme hazır{ver}. Kurmak için uygulama yeniden başlatılacak.", { ver: u.newVersion ? ` (v${u.newVersion})` : "" })}
+          ✓ {t("Güncelleme hazır{ver}. Mevcut uygulama güncellenecek — projeleriniz ve ayarlarınız korunur.", { ver: u.newVersion ? ` (v${u.newVersion})` : "" })}
         </span>
         <div className="ub-actions">
-          <button className="btn primary ub-btn" onClick={u.install}>{t("Yeniden Başlat ve Kur")}</button>
-          <button className="btn ghost ub-btn" onClick={u.dismiss}>{t("Sonra")}</button>
+          <button className="btn primary ub-btn" onClick={u.install}>{t("Şimdi Yeniden Başlat")}</button>
+          <button className="btn ghost ub-btn" onClick={u.dismiss} title={t("Uygulamayı kapattığınızda güncelleme otomatik kurulur")}>{t("Kapatınca Kur")}</button>
         </div>
       </>,
       "ok",

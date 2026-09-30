@@ -29,6 +29,8 @@ import ReportDesigner from "./ui/ReportDesigner";
 import RiggingEditor from "./ui/RiggingEditor";
 import ReachMapView from "./ui/ReachMapView";
 import ZoomPan from "./ui/ZoomPan";
+import ProjectHome from "./ui/ProjectHome";
+import { addRecent, getProjectStore, type ProjectEntry, type ExternalFile } from "./ui/projectStore";
 import LoadChartGraph from "./ui/LoadChartGraph";
 import LiftPathPanel from "./ui/LiftPathPanel";
 import TandemPanel from "./ui/TandemPanel";
@@ -50,7 +52,9 @@ import {
   hasDroppedModels,
   loadAutosave,
   saveAutosave,
+  serializeProject,
   tryParseProject,
+  type PersistedProject,
 } from "./ui/persistence";
 import { generateReport, generateMultiStepReport } from "./ui/report";
 // Logo'yu modül olarak içe aktar → Vite paketleyip base'e göre göreli yol üretir,
@@ -83,6 +87,24 @@ function restoreFromAutosave(): {
   return { state: data.state, steps: data.steps, meta: data.meta, droppedModels };
 }
 
+type CurrentProject =
+  | { kind: "library"; id: string; name: string }
+  | { kind: "external"; path: string; name: string }
+  | { kind: "unsaved"; name: string };
+
+const CURRENT_PROJECT_KEY = "hareket_current_project";
+
+/** Son oturumda açık olan projenin referansı (devam et → aynı dosyaya kaydetmeyi sürdür). */
+function loadCurrentProjectRef(): CurrentProject | null {
+  try {
+    const raw = localStorage.getItem(CURRENT_PROJECT_KEY);
+    const v = raw ? (JSON.parse(raw) as CurrentProject) : null;
+    return v && typeof v === "object" && "kind" in v ? v : null;
+  } catch {
+    return null;
+  }
+}
+
 type ViewKey = "2d" | "3d" | "ground" | "reach" | "site";
 const VIEWS: Array<{ key: ViewKey; icon: string; label: string }> = [
   { key: "2d", icon: "▦", label: "2B Yan" },
@@ -109,6 +131,7 @@ export default function App() {
     redo,
     canUndo,
     canRedo,
+    replace: replaceState,
   } = useUndoableState<UIState>(() => restored?.state ?? defaultState(CRANES[0]));
   const [tab, setTab] = useState<ViewKey>("3d");
   // Al–bırak oynatma/önizleme: aktifken görünüm ve hesap bu pozu gösterir (plan değişmez).
@@ -172,6 +195,150 @@ export default function App() {
     const t = setTimeout(() => saveAutosave(state, steps, meta), 800);
     return () => clearTimeout(t);
   }, [state, steps, meta]);
+
+  // ── Proje kütüphanesi: açılış ekranı + aktif projeye otomatik kayıt ─────────
+  const store = useMemo(() => getProjectStore(), []);
+  const [screen, setScreen] = useState<"home" | "editor">("home");
+  const [currentProject, setCurrentProject] = useState<CurrentProject | null>(() => loadCurrentProjectRef());
+  const [saveInfo, setSaveInfo] = useState<{ at: string | null; error: string | null }>({ at: null, error: null });
+  // Proje yüklendikten hemen sonraki ilk değişiklik yazılmaz (yükleme = değişiklik değil).
+  const skipNextProjectSave = useRef(true);
+  const pendingSave = useRef<string | null>(null);
+
+  useEffect(() => {
+    try {
+      if (currentProject) localStorage.setItem(CURRENT_PROJECT_KEY, JSON.stringify(currentProject));
+      else localStorage.removeItem(CURRENT_PROJECT_KEY);
+    } catch {
+      /* depolama yok */
+    }
+  }, [currentProject]);
+
+  const writeProject = async (cp: CurrentProject, content: string): Promise<CurrentProject> => {
+    if (cp.kind === "library") {
+      const e = await store.write({ id: cp.id, name: cp.name, content });
+      return { kind: "library", id: e.id, name: e.name };
+    }
+    if (cp.kind === "external" && store.writeExternal) {
+      await store.writeExternal(cp.path, content);
+      return cp;
+    }
+    // Kaydedilmemiş → kütüphane köküne yeni proje.
+    const e = await store.write({ folder: "", name: cp.name || meta.projectName || t("Adsız proje"), content });
+    addRecent({ kind: "library", id: e.id, name: e.name, craneModel: state.craneModel });
+    return { kind: "library", id: e.id, name: e.name };
+  };
+
+  const saveNow = async () => {
+    const content = serializeProject(state, steps, meta);
+    const cp: CurrentProject = currentProject ?? { kind: "unsaved", name: meta.projectName || t("Adsız proje") };
+    try {
+      const next = await writeProject(cp, content);
+      pendingSave.current = null;
+      if (next.kind !== cp.kind || (next.kind === "library" && cp.kind === "library" && next.id !== cp.id)) setCurrentProject(next);
+      setSaveInfo({ at: new Date().toISOString(), error: null });
+    } catch (e) {
+      setSaveInfo({ at: null, error: e instanceof Error ? e.message : String(e) });
+    }
+  };
+  const saveNowRef = useRef(saveNow);
+  saveNowRef.current = saveNow;
+
+  // Açık kütüphane/harici projeye 1,5 s gecikmeli otomatik kayıt.
+  useEffect(() => {
+    if (screen !== "editor" || !currentProject || currentProject.kind === "unsaved") return;
+    if (skipNextProjectSave.current) {
+      skipNextProjectSave.current = false;
+      return;
+    }
+    pendingSave.current = "pending";
+    const h = setTimeout(() => void saveNowRef.current(), 1500);
+    return () => clearTimeout(h);
+  }, [state, steps, meta, currentProject, screen]);
+
+  const saveAs = async () => {
+    const content = serializeProject(state, steps, meta);
+    const base = currentProject?.name || meta.projectName || t("Adsız proje");
+    try {
+      if (store.saveAsDialog) {
+        const r = await store.saveAsDialog(base, content);
+        if (!r) return;
+        setCurrentProject({ kind: "external", path: r.path, name: r.name });
+        addRecent({ kind: "external", id: r.path, name: r.name, craneModel: state.craneModel });
+      } else {
+        const name = window.prompt(t("Yeni proje adı"), base + " (2)");
+        if (!name) return;
+        const e = await store.write({ folder: "", name, content });
+        setCurrentProject({ kind: "library", id: e.id, name: e.name });
+        addRecent({ kind: "library", id: e.id, name: e.name, craneModel: state.craneModel });
+      }
+      skipNextProjectSave.current = true;
+      setSaveInfo({ at: new Date().toISOString(), error: null });
+    } catch (e) {
+      setSaveInfo({ at: null, error: e instanceof Error ? e.message : String(e) });
+    }
+  };
+
+  /** Ayrıştırılmış projeyi editöre yükler (geri al geçmişi sıfırlanır). */
+  const applyProject = (data: PersistedProject): boolean => {
+    try {
+      getCrane(data.state.craneModel);
+    } catch {
+      window.alert(t("Proje dosyasındaki vinç modeli tanınmıyor: {model}", { model: data.state.craneModel }));
+      return false;
+    }
+    skipNextProjectSave.current = true;
+    replaceState(data.state);
+    setSteps(data.steps);
+    setMeta(data.meta);
+    setActiveStepId(null);
+    setPreviewPose(null);
+    setSaveInfo({ at: null, error: null });
+    setModelsNotice(hasDroppedModels(data.state.objects) || data.steps.some((st) => hasDroppedModels(st.config.objects)));
+    return true;
+  };
+
+  const openFromHome = (
+    p:
+      | { source: "library"; entry: ProjectEntry; content: string }
+      | { source: "external"; file: ExternalFile }
+      | { source: "upload"; name: string; content: string },
+  ) => {
+    const content = p.source === "library" ? p.content : p.source === "external" ? p.file.content : p.content;
+    const data = tryParseProject(content);
+    if (!data) {
+      window.alert(t("Geçersiz veya desteklenmeyen proje dosyası."));
+      return;
+    }
+    if (!applyProject(data)) return;
+    if (p.source === "library") setCurrentProject({ kind: "library", id: p.entry.id, name: p.entry.name });
+    else if (p.source === "external") {
+      setCurrentProject({ kind: "external", path: p.file.path, name: p.file.name });
+      addRecent({ kind: "external", id: p.file.path, name: p.file.name, craneModel: data.state.craneModel });
+    } else setCurrentProject({ kind: "unsaved", name: p.name });
+    setScreen("editor");
+  };
+
+  const newFromHome = async (p: { name: string; folder: string; craneModel: string; meta: { projectName: string; siteLocation: string; client: string } }) => {
+    const c = getCrane(p.craneModel);
+    const st = defaultState(c);
+    const m = { ...defaultProjectMeta(), ...p.meta, projectName: p.meta.projectName || p.name };
+    try {
+      const e = await store.write({ folder: p.folder, name: p.name, content: serializeProject(st, [], m) });
+      applyProject({ version: 2, state: st, steps: [], meta: m });
+      setCurrentProject({ kind: "library", id: e.id, name: e.name });
+      addRecent({ kind: "library", id: e.id, name: e.name, craneModel: c.model });
+      setScreen("editor");
+    } catch (err) {
+      window.alert(t("Proje oluşturulamadı: {msg}", { msg: err instanceof Error ? err.message : String(err) }));
+    }
+  };
+
+  const goHome = async () => {
+    if (pendingSave.current && currentProject && currentProject.kind !== "unsaved") await saveNowRef.current();
+    setPreviewPose(null);
+    setScreen("home");
+  };
 
   const viewState: UIState = useMemo(
     () =>
@@ -499,14 +666,8 @@ export default function App() {
       window.alert(t("Proje dosyasındaki vinç modeli tanınmıyor: {model}", { model: data.state.craneModel }));
       return;
     }
-    setStateFull(data.state);
-    setSteps(data.steps);
-    setMeta(data.meta);
-    setActiveStepId(null);
-    setModelsNotice(
-      hasDroppedModels(data.state.objects) ||
-        data.steps.some((s) => hasDroppedModels(s.config.objects)),
-    );
+    if (!applyProject(data)) return;
+    setCurrentProject({ kind: "unsaved", name: file.name.replace(/\.hcp\.json$|\.json$/i, "") });
   };
 
   // ── Klavye kısayolları: Ctrl+Z / Ctrl+Shift+Z / Ctrl+Y (geri al/yinele),
@@ -521,6 +682,11 @@ export default function App() {
       if (key === "p") {
         e.preventDefault();
         void pdfRef.current();
+        return;
+      }
+      if (key === "s") {
+        e.preventDefault();
+        void saveNowRef.current();
         return;
       }
       const target = e.target as HTMLElement | null;
@@ -551,6 +717,25 @@ export default function App() {
     ? t("Yük tablosu dışında — bu konfigürasyonda kaldırma yapılamaz.") + " " + result.capacity.out_of_range
     : result?.clearance?.warning ?? null;
 
+  if (screen === "home") {
+    return (
+      <>
+        <UpdateBanner u={updater} />
+        <ProjectHome
+          cranes={craneList}
+          appVersion={updater.version || undefined}
+          hasAutosave={!!restored}
+          onContinue={() => {
+            skipNextProjectSave.current = true;
+            setScreen("editor");
+          }}
+          onNew={(p) => void newFromHome(p)}
+          onOpen={openFromHome}
+        />
+      </>
+    );
+  }
+
   return (
     <div className="cad">
       {/* Proje dosyası açma (gizli input) */}
@@ -570,18 +755,40 @@ export default function App() {
       <div className="titlebar">
         <img className="brand-logo" src={logoW} alt="Hareket" />
         <span className="brand-name">Crane Planner</span>
+        <button
+          type="button"
+          className="tb-btn"
+          style={{ height: 24, padding: "0 10px", fontSize: 11.5, marginLeft: 8 }}
+          title={t("Projeler ekranına dön")}
+          onClick={() => void goHome()}
+        >
+          ☰ {currentProject?.name ?? t("Adsız proje")}
+          <span style={{ marginLeft: 8, color: saveInfo.error ? "var(--red)" : "var(--text-faint)", fontWeight: 400 }}>
+            {saveInfo.error
+              ? t("Kaydedilemedi")
+              : !currentProject || currentProject.kind === "unsaved"
+                ? t("kaydedilmedi")
+                : saveInfo.at
+                  ? t("Kaydedildi {time}", { time: new Date(saveInfo.at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) })
+                  : ""}
+          </span>
+        </button>
         <span className="brand-sub">· {t("Vinç Kaldırma Planlama")}</span>
         <Menu
           label={t("Dosya")}
           items={[
+            { label: t("Projeler Ekranı…"), onClick: () => void goHome() },
+            { label: t("Kaydet"), shortcut: "Ctrl+S", onClick: () => void saveNow() },
+            { label: t("Farklı Kaydet…"), onClick: () => void saveAs() },
+            { separator: true },
             { label: t("Proje Bilgileri…"), onClick: () => setShowMetaDialog(true) },
             { label: t("Makinelerim…"), onClick: () => setShowMachines(true) },
             { separator: true },
             { label: t("PDF Rapor (tek adım)"), shortcut: "Ctrl+P", onClick: () => void pdf() },
             { label: t("Çok Adımlı PDF"), onClick: () => generateMultiStepReport(steps, meta, reportOpts) },
             { separator: true },
-            { label: t("Projeyi Kaydet (.json)"), onClick: saveProjectFile },
-            { label: t("Proje Aç…"), onClick: openProjectFile },
+            { label: t("Dışa Aktar (.json)"), onClick: saveProjectFile },
+            { label: t("Dosyadan Aç (.json)…"), onClick: openProjectFile },
             { separator: true },
             { label: t("Sıfırla"), onClick: handleReset },
           ]}
@@ -664,13 +871,9 @@ export default function App() {
             }`}
             style={{ height: 24, padding: "0 10px", fontSize: 11.5 }}
             title={t("Güncellemeleri denetle / güncelle")}
-            onClick={
-              updater.status === "downloaded"
-                ? updater.install
-                : updater.status === "available"
-                  ? updater.download
-                  : updater.check
-            }
+            // İndirme otomatik: bulunduğunda/inerken düğme yalnız durum gösterir.
+            disabled={updater.status === "available" || updater.status === "downloading"}
+            onClick={updater.status === "downloaded" ? updater.install : updater.check}
           >
             {updater.status === "checking"
               ? `⟳ ${t("Denetleniyor…")}`

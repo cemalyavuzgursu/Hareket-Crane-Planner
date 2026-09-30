@@ -3,6 +3,7 @@
 // Otomatik güncelleme: electron-updater ile GitHub release'lerinden kontrol eder.
 const { app, BrowserWindow, Menu, shell, ipcMain } = require("electron");
 const path = require("path");
+const { registerProjectIpc } = require("./projects.cjs");
 
 // Geliştirme modunda Vite dev sunucusuna bağlan; aksi halde derlenmiş dosyayı yükle.
 const DEV_URL = process.env.VITE_DEV_SERVER_URL;
@@ -11,7 +12,9 @@ const DEV_URL = process.env.VITE_DEV_SERVER_URL;
 let autoUpdater = null;
 try {
   autoUpdater = require("electron-updater").autoUpdater;
-  autoUpdater.autoDownload = false; // önce kullanıcıya sor
+  // Güncelleme arka planda sessizce iner; hazır olunca kullanıcıya "yeniden
+  // başlat" sorulur ya da uygulama kapanırken MEVCUT kuruluma sessizce kurulur.
+  autoUpdater.autoDownload = true;
   autoUpdater.autoInstallOnAppQuit = true;
 } catch {
   // electron-updater yoksa güncelleme özellikleri sessizce devre dışı.
@@ -70,8 +73,10 @@ function registerIpc() {
   });
   ipcMain.handle("updater:install", () => {
     if (!autoUpdater) return { ok: false };
-    // Pencereleri kapatıp güncellemeyi kurar ve yeniden başlatır.
-    setImmediate(() => autoUpdater.quitAndInstall());
+    // Pencereleri kapatıp güncellemeyi SESSİZ kurar (kurulum sihirbazı
+    // gösterilmez, mevcut kurulum dizini/kısayollar korunur) ve uygulamayı
+    // yeniden başlatır: quitAndInstall(isSilent, isForceRunAfter).
+    setImmediate(() => autoUpdater.quitAndInstall(true, true));
     return { ok: true };
   });
 }
@@ -118,6 +123,8 @@ function createWindow() {
         {
           label: "Güncellemeleri Denetle",
           click: () => {
+            // Elle denetim: renderer "güncel"/hata sonucunu da gösterir.
+            sendToRenderer("updater:checking", { manual: true });
             if (autoUpdater && app.isPackaged) autoUpdater.checkForUpdates().catch(() => {});
             else sendToRenderer("updater:not-available");
           },
@@ -135,9 +142,11 @@ function createWindow() {
   win.once("ready-to-show", () => {
     win.maximize();
     win.show();
-    // Açılışta sessizce güncelleme kontrolü (yalnızca paketlenmiş sürümde).
+    // Açılışta ve her 4 saatte bir sessizce güncelleme kontrolü (yalnızca
+    // paketlenmiş sürümde). Bulunursa arka planda iner (autoDownload).
     if (autoUpdater && app.isPackaged) {
       setTimeout(() => autoUpdater.checkForUpdates().catch(() => {}), 3000);
+      setInterval(() => autoUpdater.checkForUpdates().catch(() => {}), 4 * 60 * 60 * 1000);
     }
   });
 
@@ -177,6 +186,7 @@ function createWindow() {
 app.whenReady().then(() => {
   wireAutoUpdater();
   registerIpc();
+  registerProjectIpc();
   createWindow();
   app.on("activate", () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();

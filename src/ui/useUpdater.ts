@@ -3,7 +3,7 @@
  * window.hareketDesktop) saran React hook'u. Web/tarayıcıda güvenle no-op döner
  * (isElectron=false), böylece aynı kod hem web hem masaüstünde çalışır.
  */
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { tStatic } from "./i18n";
 
 declare global {
@@ -52,32 +52,47 @@ export function useUpdater(): UpdaterState {
   const [progress, setProgress] = useState(0);
   const [error, setError] = useState("");
   const [dismissed, setDismissed] = useState(false);
+  // Kullanıcı elle denetlediyse "güncel" / hata bildirimi gösterilir; otomatik
+  // (açılış + 4 saatlik) denetimlerde yalnızca güncelleme bulununca konuşulur.
+  const manual = useRef(false);
 
   useEffect(() => {
     if (!api) return;
     api.getVersion().then(setVersion).catch(() => {});
     const offs = [
-      api.on("updater:checking", () => {
-        setStatus("checking");
+      api.on("updater:checking", (d) => {
+        if ((d as { manual?: boolean } | undefined)?.manual) manual.current = true;
+        setStatus((s) => (s === "downloading" || s === "downloaded" ? s : "checking"));
         setError("");
-        setDismissed(false);
       }),
       api.on("updater:available", (d) => {
         setStatus("available");
         setNewVersion((d as { version?: string })?.version ?? "");
         setDismissed(false);
       }),
-      api.on("updater:not-available", () => setStatus("not-available")),
+      api.on("updater:not-available", () => {
+        setStatus(manual.current ? "not-available" : "idle");
+        if (manual.current) setDismissed(false);
+        manual.current = false;
+      }),
       api.on("updater:progress", (d) => {
         setStatus("downloading");
         setProgress((d as { percent?: number })?.percent ?? 0);
       }),
       api.on("updater:downloaded", (d) => {
         setStatus("downloaded");
-        setNewVersion((d as { version?: string })?.version ?? newVersion);
+        setDismissed(false);
+        setNewVersion((prev) => (d as { version?: string })?.version || prev);
       }),
       api.on("updater:error", (d) => {
+        // Otomatik denetimde (ör. çevrimdışı) kullanıcıyı rahatsız etme.
+        if (!manual.current) {
+          setStatus((s) => (s === "downloaded" ? s : "idle"));
+          return;
+        }
+        manual.current = false;
         setStatus("error");
+        setDismissed(false);
         setError((d as { message?: string })?.message ?? tStatic("Güncelleme hatası"));
       }),
     ];
@@ -87,6 +102,7 @@ export function useUpdater(): UpdaterState {
 
   const check = useCallback(() => {
     if (!api) return;
+    manual.current = true;
     setDismissed(false);
     setStatus("checking");
     api.checkForUpdates().catch(() => {});
