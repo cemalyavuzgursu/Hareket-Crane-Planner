@@ -10,6 +10,252 @@
     "sheave_offset": 1.321,
     "boom_thickness": 1.25
   },
+  "dimensions": {
+    "source": "Liebherr LTM 1160 (1986) Technical Data TP 56 g 1.10.86 — ölçü çizimi (cranenetwork.com/uploads/specs/...liebherr_ltm_1160...pdf). Excel yük tablosuna EN YAKIN gerçek model (14–45 m bom, 176 t @3 m, %75/%85 DIN 15019-2). Ayak açıklığı ve denge seçenekleri Excel'den farklıdır; hesap Excel değerlerini kullanır.",
+    "carrier_length_m": 14.17,
+    "carrier_width_m": 3,
+    "body_width_m": 2.8,
+    "travel_height_m": 3.8,
+    "ground_clearance_m": 0.35,
+    "deck_height_m": 1.79,
+    "axle_count": 6,
+    "tire_diameter_m": 1.38,
+    "axle_positions_m": [
+      2.25,
+      5.1,
+      6.8,
+      8.8,
+      10.5,
+      12.2
+    ],
+    "wheelbase_front_m": 2.25,
+    "tail_radius_m": 5.2,
+    "cab_height_m": 2.53,
+    "boom_pivot_height_m": 3.3,
+    "boom_pivot_x_m": -3.33,
+    "superstructure_deck_height_m": 1.79,
+    "counterweight_height_m": 1.17,
+    "boom_stowed_length_m": 14.1,
+    "slew_center_from_front_m": 10.4,
+    "boom_sections": 4,
+    "boom_base_depth_m": 1.2,
+    "boom_base_width_m": 0.95,
+    "counterweight_max_t": 24,
+    "counterweight_depth_m": 1.2,
+    "counterweight_width_m": 2.7,
+    "color": "#f5c400",
+    "estimated_fields": [
+      "tire_diameter_m (14.00 R24 dış çapı ~1,38 m)",
+      "deck_height_m",
+      "cab_height_m",
+      "boom_pivot_height_m (seyir)",
+      "superstructure_deck_height_m",
+      "counterweight_height_m",
+      "counterweight_depth_m",
+      "counterweight_width_m",
+      "boom_base_depth_m",
+      "boom_base_width_m",
+      "ground_clearance_m"
+    ],
+    "outrigger_rear_fraction": 0.34,
+    "outrigger_rear_fraction_source": "1986 çizimi: arka 3,22/3,58 m, ön 6,68/6,32 m (9,9 m açıklıkta 0,34) — Excel açıklığına ORAN olarak uygulandı (TAHMİNİ)"
+  },
+  "appearance": {
+    "source": "Liebherr LTM 1160 (1986) Technical Data TP 56 g ölçü çizimi — profiller çizimden (≈81 px/m) çıkarıldı.",
+    "colors": {
+      "body": "#f5c400",
+      "chassis": "#2b2e33",
+      "glass": "#2c4257",
+      "boom": "#f5c400",
+      "cw": "#e3b400",
+      "dark": "#3a3f45"
+    },
+    "carrier": [
+      {
+        "pts": [
+          [
+            0.12,
+            0.62
+          ],
+          [
+            14.17,
+            0.62
+          ],
+          [
+            14.17,
+            0.86
+          ],
+          [
+            14.17,
+            1.23
+          ],
+          [
+            0.12,
+            1.23
+          ]
+        ],
+        "color": "chassis"
+      },
+      {
+        "pts": [
+          [
+            1.23,
+            1.23
+          ],
+          [
+            14.17,
+            1.23
+          ],
+          [
+            14.17,
+            1.79
+          ],
+          [
+            1.23,
+            1.79
+          ]
+        ],
+        "color": "body"
+      },
+      {
+        "pts": [
+          [
+            0.12,
+            0.62
+          ],
+          [
+            1.23,
+            0.62
+          ],
+          [
+            1.23,
+            2.53
+          ],
+          [
+            0.15,
+            2.53
+          ],
+          [
+            0.12,
+            2.35
+          ]
+        ],
+        "color": "body",
+        "width": 1.5,
+        "side": "left"
+      },
+      {
+        "pts": [
+          [
+            0.31,
+            1.48
+          ],
+          [
+            1.05,
+            1.48
+          ],
+          [
+            1.05,
+            2.37
+          ],
+          [
+            0.31,
+            2.37
+          ]
+        ],
+        "color": "glass",
+        "width": 1.55,
+        "side": "left"
+      }
+    ],
+    "superstructure": [
+      {
+        "pts": [
+          [
+            0.22,
+            1.79
+          ],
+          [
+            0.22,
+            3.27
+          ],
+          [
+            -2.0,
+            3.27
+          ],
+          [
+            -2.93,
+            2.96
+          ],
+          [
+            -2.93,
+            1.79
+          ]
+        ],
+        "color": "body"
+      },
+      {
+        "pts": [
+          [
+            1.7,
+            1.98
+          ],
+          [
+            1.7,
+            3.52
+          ],
+          [
+            1.46,
+            3.83
+          ],
+          [
+            0.22,
+            3.83
+          ],
+          [
+            0.22,
+            1.98
+          ]
+        ],
+        "color": "body",
+        "width": 1.0,
+        "side": "left"
+      },
+      {
+        "pts": [
+          [
+            1.52,
+            3.02
+          ],
+          [
+            0.35,
+            3.02
+          ],
+          [
+            0.35,
+            3.7
+          ],
+          [
+            1.43,
+            3.7
+          ],
+          [
+            1.52,
+            3.52
+          ]
+        ],
+        "color": "glass",
+        "width": 1.05,
+        "side": "left"
+      }
+    ],
+    "counterweight_box": {
+      "u0": -4.1,
+      "u1": -2.9,
+      "y0": 2.04,
+      "y1": 3.21
+    }
+  },
   "self_weight": 60.0,
   "boom_weight_t": 15,
   "boom_weight_source": "TAHMİNİ — Liebherr LTM1160-5.2 Technical Data'da bom öz-ağırlığı yayınlanmamış; muhafazakâr üst sınır (SANY SAC2500E 75,5m/7-bölüm bom kıyaslamasından ölçeklendirilmiştir).",
@@ -38,7 +284,7 @@
   "capacity_pct_options": [
     85
   ],
-  "notes": "sheave_offset=1.321 (LTM1250'den farklı). 85% set Excel'den. self_weight=60t: Liebherr LTM1160-5.2 Technical Data s.9 (yol ağırlığı, 0t CW).",
+  "notes": "sheave_offset=1.321 (LTM1250'den farklı). 85% set Excel'den. self_weight=60t: Liebherr LTM1160-5.2 Technical Data s.9 (yol ağırlığı, 0t CW). DİKKAT: Excel 'LT 1160' tablosu hiçbir yayınlanmış Liebherr tablosuyla birebir eşleşmiyor (en yakını 1986 LTM 1160: bom 14–45 m, 176 t @3 m; ama ayak 9,9×8,6 m, denge 13,5/27/39 t). Bom uzunlukları bazik+strok·{0,1/3,2/3,5/6,1} desenine uyuyor (sentetik olabilir). Datasheet: bom mafsalı slew merkezinin 2,60 m gerisinde (Excel boom_offset 3,33 — hesap Excel'i kullanır), ön ayak kutuları 6,68/6,32 m önde, arka 3,22/3,58 m arkada (asimetrik).",
   "load_chart": {
     "24": {
       "85": {
@@ -1928,31 +2174,5 @@
         ]
       }
     }
-  },
-  "datasheet_substitute": {
-    "source": "Sany SAC2500E brochure (Sany_crane-brochure_SAC2500E.pdf) — sınıf olarak en yakın 250t vinç; Excel'de eksik olan değerler buradan alındı.",
-    "gross_weight_t": 60.0,
-    "outrigger_span_LxT_m": [
-      9.0,
-      7.8
-    ],
-    "tail_slewing_radius_m": 5.3,
-    "counterweight_options_t": [
-      0,
-      5,
-      10,
-      15,
-      17,
-      22,
-      26.5,
-      31.5,
-      36,
-      41,
-      45.5,
-      50.5,
-      55,
-      60,
-      80
-    ]
   }
 }

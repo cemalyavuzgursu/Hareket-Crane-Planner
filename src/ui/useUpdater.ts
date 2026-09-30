@@ -4,6 +4,7 @@
  * (isElectron=false), böylece aynı kod hem web hem masaüstünde çalışır.
  */
 import { useCallback, useEffect, useState } from "react";
+import { tStatic } from "./i18n";
 
 declare global {
   interface Window {
@@ -77,7 +78,7 @@ export function useUpdater(): UpdaterState {
       }),
       api.on("updater:error", (d) => {
         setStatus("error");
-        setError((d as { message?: string })?.message ?? "Güncelleme hatası");
+        setError((d as { message?: string })?.message ?? tStatic("Güncelleme hatası"));
       }),
     ];
     return () => offs.forEach((off) => off());

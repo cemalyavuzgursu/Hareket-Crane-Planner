@@ -10,8 +10,21 @@ export const CRANES: CraneModel[] = [
   sac2500e as unknown as CraneModel,
 ];
 
+// "Makinelerim" (kullanıcı tanımlı) vinçler — App açılışta ve değişiklikte kaydeder.
+let customCranes: CraneModel[] = [];
+
+/** Kullanıcı vinçlerini kayıt defterine ekler (yerleşik adlarla çakışanlar yok sayılır). */
+export function registerCustomCranes(list: CraneModel[]): void {
+  customCranes = list.filter((c) => !CRANES.some((b) => b.model === c.model));
+}
+
+/** Yerleşik + kullanıcı vinçleri. */
+export function allCranes(): CraneModel[] {
+  return [...CRANES, ...customCranes];
+}
+
 export function getCrane(model: string): CraneModel {
-  const c = CRANES.find((c) => c.model === model);
+  const c = allCranes().find((c) => c.model === model);
   if (!c) throw new Error(`Vinç bulunamadı: ${model}`);
   return c;
 }

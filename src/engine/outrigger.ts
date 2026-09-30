@@ -52,6 +52,9 @@ export interface OutriggerAtAngle {
 
 export interface OutriggerResult {
   V: number; // bileşke düşey kuvvet (t)
+  /** Ayak dikdörtgeni merkezinin slew merkezine göre X konumu (m; + = arka).
+   * Simetrik ayaklarda 0. Diyagramlar slew merkezini buna göre kaydırır. */
+  rect_center_x?: number;
   critical_angle: number; // en kritik slew açısı (°)
   max_corner_load: number; // en büyük köşe yükü (t) — tüm açılar arası
   max_corner_label: string;
@@ -71,11 +74,14 @@ export interface OutriggerResult {
   per_angle: OutriggerAtAngle[]; // tarama detayları
 }
 
+// Köşe etiketleri slew konvansiyonuyla tutarlı: +X = şasi ARKASI (slew 0° =
+// arka üzerinden), +Y = sürücüye göre SOL (arka yukarıda üstten bakış, +Y sağda).
+// İlk harf ön/arka (F/R), ikinci harf sağ/sol (R/L).
 const CORNERS: Array<{ label: string; sx: 1 | -1; sy: 1 | -1 }> = [
-  { label: "FR", sx: +1, sy: +1 },
+  { label: "RL", sx: +1, sy: +1 },
   { label: "FL", sx: -1, sy: +1 },
   { label: "RR", sx: +1, sy: -1 },
-  { label: "RL", sx: -1, sy: -1 },
+  { label: "FR", sx: -1, sy: -1 },
 ];
 
 /** "10,2x10,6" -> {Lx:10.2, Ly:10.6}. Türkçe ondalık virgül desteklenir. */

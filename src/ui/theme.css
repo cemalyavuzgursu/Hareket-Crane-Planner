@@ -103,12 +103,17 @@ html, body, #root {
 .field { margin-bottom: 10px; }
 .field label { display: block; font-size: 12px; color: var(--text-dim); margin-bottom: 4px; }
 .field .unit { color: var(--text-faint); font-size: 11px; }
-input[type="number"], select {
+input[type="number"], select,
+input[type="text"], input:not([type]), textarea {
   width: 100%; padding: 8px 10px; background: var(--bg);
   border: 1px solid var(--border-2); border-radius: 7px; color: var(--text);
   font-family: var(--mono); font-size: 13px; outline: none;
 }
-input[type="number"]:focus, select:focus { border-color: var(--accent); }
+textarea { font-family: inherit; resize: vertical; min-height: 70px; }
+input[type="number"]:focus, select:focus,
+input[type="text"]:focus, input:not([type]):focus, textarea:focus { border-color: var(--accent); }
+input:disabled { opacity: .7; cursor: not-allowed; }
+input[type="file"] { color: var(--text-dim); font-size: 12px; }
 .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 
 /* Toggle group */
@@ -349,3 +354,5 @@ input[type="number"]:focus, select:focus { border-color: var(--accent); }
   width: 520px; max-width: 100%; max-height: calc(100vh - 48px);
   overflow-y: auto; box-shadow: 0 20px 60px rgba(0,0,0,.5);
 }
+/* Diyaloglarda butonlar içerik genişliğinde (panel butonları tam genişlik kalır). */
+.modal-card .btn { width: auto; padding: 8px 14px; font-size: 13px; }

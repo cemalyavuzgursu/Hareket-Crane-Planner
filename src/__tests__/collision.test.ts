@@ -422,6 +422,13 @@ describe("computeClearance — teta/beta alan (domain) koruması", () => {
         load_diameter: 13,
         obstacle_height: 2.3,
         obstacle_distance: 0,
+        model: "excel",
+      }),
+    ).toThrow(/yük çapı/i);
+    // Gerçek (centered) modelde eşik yarım çaptır: 9 − 26/2 + 3.33 < 0
+    expect(() =>
+      computeClearance(G, {
+        boom_length: 16.5, radius: 9, load_height: 4.25, load_diameter: 26, obstacle_height: 2.3, obstacle_distance: 0,
       }),
     ).toThrow(/yük çapı/i);
   });

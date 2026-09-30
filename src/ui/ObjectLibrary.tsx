@@ -1,6 +1,9 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import type { SceneObject, SceneObjectKind } from "../engine/types";
-import { fileToModelUrl, importableExt } from "./bimImport";
+import { fileToModel, importableExt, isDwg, DWG_UNSUPPORTED_MSG } from "./bimImport";
+import { useI18n } from "./i18n";
+import { useUnits } from "./units";
+import UnitInput, { type UnitKind } from "./UnitInput";
 
 export interface ObjectLibraryProps {
   objects: SceneObject[];
@@ -69,24 +72,16 @@ interface MiniNumProps {
   value: number;
   step?: number;
   min?: number;
+  /** Birim türü (varsayılan uzunluk). value/min SI cinsindendir. */
+  kind?: UnitKind;
   onChange: (v: number) => void;
 }
 
 /**
- * Kompakt sayı girişi (mono). Kullanıcı alanı geçici olarak boşaltabilir;
- * geçersizse onBlur'da eski değere döner. State yukarıda tutulur.
+ * Kompakt sayı girişi (mono). Birim sistemine duyarlı (UnitInput);
+ * state SI olarak yukarıda tutulur.
  */
-function MiniNum({ label, value, step = 0.5, min, onChange }: MiniNumProps) {
-  const [text, setText] = useState(String(value));
-
-  useEffect(() => {
-    const cur = parseFloat(text);
-    if (!Number.isFinite(cur) || cur !== value) {
-      setText(Number.isFinite(value) ? String(value) : "");
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [value]);
-
+function MiniNum({ label, value, step = 0.5, min, kind = "len", onChange }: MiniNumProps) {
   return (
     <label
       style={{
@@ -98,22 +93,13 @@ function MiniNum({ label, value, step = 0.5, min, onChange }: MiniNumProps) {
       }}
     >
       {label}
-      <input
-        type="number"
-        inputMode="decimal"
-        value={text}
+      <UnitInput
+        kind={kind}
+        value={value}
         step={step}
         min={min}
         style={{ padding: "4px 6px", fontSize: 12 }}
-        onChange={(e) => {
-          const t = e.target.value;
-          setText(t);
-          const n = parseFloat(t);
-          if (Number.isFinite(n)) onChange(min != null ? Math.max(min, n) : n);
-        }}
-        onBlur={() => {
-          if (!Number.isFinite(parseFloat(text))) setText(String(value));
-        }}
+        onChange={onChange}
       />
     </label>
   );
@@ -123,8 +109,12 @@ export default function ObjectLibrary({
   objects,
   onChange,
 }: ObjectLibraryProps): JSX.Element {
+  const { t } = useI18n();
+  const u = useUnits();
   const [importing, setImporting] = useState(false);
   const [importErr, setImportErr] = useState("");
+  /** DXF: kalınlıksız kapalı 2B çizimleri 3 m yüksekliğe ekstrüde et. */
+  const [extrude2d, setExtrude2d] = useState(false);
 
   /** Verilen türden yeni nesne ekle (varsayılan ölçülerle). */
   function addObject(kind: SceneObjectKind): void {
@@ -136,7 +126,7 @@ export default function ObjectLibrary({
     const obj: SceneObject = {
       id: makeId(),
       kind,
-      label: `${meta.label} ${sameKindCount + 1}`,
+      label: `${t(meta.label)} ${sameKindCount + 1}`,
       x: meta.defaults.x,
       z: meta.defaults.z + zOffset,
       width: meta.defaults.width,
@@ -147,25 +137,33 @@ export default function ObjectLibrary({
     onChange([...objects, obj]);
   }
 
-  /** İçe aktarılan 3B/BIM dosyasından model nesnesi ekle (.glb/.gltf/.obj/.ifc). */
+  /** İçe aktarılan 3B/BIM/CAD dosyasından model nesnesi ekle (.glb/.gltf/.obj/.ifc/.dxf). */
   async function importModel(file: File): Promise<void> {
+    if (isDwg(file.name)) {
+      setImportErr(t(DWG_UNSUPPORTED_MSG));
+      return;
+    }
     if (!importableExt(file.name)) {
-      setImportErr(`Desteklenmeyen tür: ${file.name} (.glb .gltf .obj .ifc)`);
+      setImportErr(t("Desteklenmeyen tür: {name} (.glb .gltf .obj .ifc .dxf)", { name: file.name }));
       return;
     }
     setImportErr("");
     setImporting(true);
     try {
-      const url = await fileToModelUrl(file);
+      const { url, size } = await fileToModel(file, {
+        extrude2dHeight: extrude2d ? 3 : undefined,
+      });
+      const r2 = (v: number) => Math.round(v * 100) / 100;
       const obj: SceneObject = {
         id: makeId(),
         kind: "model",
-        label: file.name.replace(/\.(glb|gltf|obj|ifc)$/i, ""),
+        label: file.name.replace(/\.(glb|gltf|obj|ifc|dxf)$/i, ""),
         x: 0,
         z: 14 + 2 * objects.length,
-        width: 6,
-        depth: 6,
-        height: 6,
+        // DXF gerçek ölçüsünü taşır (m); diğer formatlarda varsayılan kutu.
+        width: size ? r2(size.width) : 6,
+        depth: size ? r2(size.depth) : 6,
+        height: size ? r2(size.height) : 6,
         rotationY: 0,
         modelUrl: url,
         modelName: file.name,
@@ -190,7 +188,7 @@ export default function ObjectLibrary({
 
   return (
     <div className="card">
-      <h3>🏗 Nesne Kütüphanesi / Çevre</h3>
+      <h3>🏗 {t("Nesne Kütüphanesi / Çevre")}</h3>
 
       <div
         className="section-title"
@@ -200,7 +198,7 @@ export default function ObjectLibrary({
           alignItems: "center",
         }}
       >
-        <span>Çevre Nesneleri Ekle</span>
+        <span>{t("Çevre Nesneleri Ekle")}</span>
         <span
           style={{
             fontFamily: "var(--mono)",
@@ -228,11 +226,11 @@ export default function ObjectLibrary({
           <div
             key={m.kind}
             className="toggle"
-            title={`${m.label} ekle`}
+            title={t("{name} ekle", { name: t(m.label) })}
             onClick={() => addObject(m.kind)}
             style={{ fontSize: 12, padding: "7px 4px" }}
           >
-            {m.icon} {m.label}
+            {m.icon} {t(m.label)}
           </div>
         ))}
       </div>
@@ -245,12 +243,12 @@ export default function ObjectLibrary({
           fontSize: 12, padding: "8px 4px",
           cursor: importing ? "wait" : "pointer", opacity: importing ? 0.6 : 1,
         }}
-        title="3B/BIM model içe aktar — glTF, GLB, OBJ veya IFC (DWG: önce glTF/IFC'e dönüştürün)"
+        title={t("3B/BIM/CAD model içe aktar — glTF, GLB, OBJ, IFC veya AutoCAD DXF (DWG: önce 'Farklı Kaydet → DXF')")}
       >
-        {importing ? "⏳ İçe aktarılıyor…" : "📦 3B / BIM Model İçe Aktar (.glb .gltf .obj .ifc)"}
+        {importing ? `⏳ ${t("İçe aktarılıyor…")}` : `📦 ${t("3B / BIM / DXF İçe Aktar (.glb .gltf .obj .ifc .dxf)")}`}
         <input
           type="file"
-          accept=".glb,.gltf,.obj,.ifc,model/gltf-binary,model/gltf+json"
+          accept=".glb,.gltf,.obj,.ifc,.dxf,.dwg,model/gltf-binary,model/gltf+json"
           disabled={importing}
           style={{ display: "none" }}
           onChange={(e) => {
@@ -260,6 +258,20 @@ export default function ObjectLibrary({
           }}
         />
       </label>
+      <label
+        style={{
+          display: "flex", alignItems: "center", gap: 6, fontSize: 11,
+          color: "var(--text-faint)", marginTop: -6, marginBottom: importErr ? 6 : 12,
+        }}
+        title={t("DXF: kalınlığı (thickness) olmayan kapalı çizgileri 3 m yüksek duvar/blok olarak çıkarır. Kalınlığı olanlar her zaman kendi kalınlığıyla çıkarılır.")}
+      >
+        <input
+          type="checkbox"
+          checked={extrude2d}
+          onChange={(e) => setExtrude2d(e.target.checked)}
+        />
+        {t("2B çizimi 3 m yüksekliğe çıkar (DXF)")}
+      </label>
       {importErr && (
         <div className="error-box" style={{ marginBottom: 12, fontSize: 12 }}>⚠ {importErr}</div>
       )}
@@ -267,7 +279,7 @@ export default function ObjectLibrary({
       {/* Yerleştirilmiş nesneler listesi */}
       {objects.length === 0 ? (
         <div className="disclaimer">
-          Henüz nesne yok. Yukarıdan ekleyin.
+          {t("Henüz nesne yok. Yukarıdan ekleyin.")}
         </div>
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
@@ -294,7 +306,7 @@ export default function ObjectLibrary({
                     marginBottom: 6,
                   }}
                 >
-                  <span style={{ fontSize: 14 }} title={isModel ? "3B Model" : meta.label}>
+                  <span style={{ fontSize: 14 }} title={isModel ? t("3B Model") : t(meta.label)}>
                     {icon}
                   </span>
                   <input
@@ -317,7 +329,7 @@ export default function ObjectLibrary({
                   />
                   <button
                     type="button"
-                    title="Sil"
+                    title={t("Sil")}
                     onClick={() => removeObject(o.id)}
                     style={{
                       flex: "0 0 auto",
@@ -339,7 +351,7 @@ export default function ObjectLibrary({
 
                 {isModel && o.modelName && (
                   <div style={{ fontSize: 10, color: "var(--text-faint)", marginBottom: 6, fontFamily: "var(--mono)" }}>
-                    {o.modelName} · sınırlayıcı kutu çarpışma için kullanılır
+                    {o.modelName} · {t("sınırlayıcı kutu çarpışma için kullanılır")}
                   </div>
                 )}
 
@@ -352,47 +364,49 @@ export default function ObjectLibrary({
                   }}
                 >
                   <MiniNum
-                    label="x (m)"
+                    label={`x (${u.lenU})`}
                     value={o.x}
                     onChange={(v) => updateObject(o.id, { x: v })}
                   />
                   <MiniNum
-                    label="z (m)"
+                    label={`z (${u.lenU})`}
                     value={o.z}
                     onChange={(v) => updateObject(o.id, { z: v })}
                   />
                   <MiniNum
-                    label="Taban kotu y (m)"
+                    label={`${t("Taban kotu y")} (${u.lenU})`}
                     value={o.y ?? 0}
                     onChange={(v) => updateObject(o.id, { y: v })}
                   />
                   <MiniNum
-                    label="En (m)"
+                    label={`${t("En")} (${u.lenU})`}
                     value={o.width}
                     min={0.1}
                     onChange={(v) => updateObject(o.id, { width: v })}
                   />
                   <MiniNum
-                    label="Boy (m)"
+                    label={`${t("Boy")} (${u.lenU})`}
                     value={o.depth}
                     min={0.1}
                     onChange={(v) => updateObject(o.id, { depth: v })}
                   />
                   <MiniNum
-                    label="Yük (m)"
+                    label={`${t("Yükseklik")} (${u.lenU})`}
                     value={o.height}
                     min={0.1}
                     onChange={(v) => updateObject(o.id, { height: v })}
                   />
                   <MiniNum
-                    label="Dön (°)"
+                    label={`${t("Dön")} (°)`}
+                    kind="none"
                     value={o.rotationY ?? 0}
                     step={15}
                     onChange={(v) => updateObject(o.id, { rotationY: v })}
                   />
                   {o.kind === "powerline" && (
                     <MiniNum
-                      label="Gerilim (kV)"
+                      label={`${t("Gerilim")} (kV)`}
+                      kind="none"
                       value={o.voltage_kv ?? 0}
                       min={0}
                       step={1}
@@ -402,7 +416,7 @@ export default function ObjectLibrary({
                 </div>
                 {o.kind === "powerline" && !o.voltage_kv && (
                   <div style={{ fontSize: 10, color: "var(--text-faint)", marginTop: 6 }}>
-                    Gerilim girilmezse muhafazakâr (en geniş) emniyet marjı uygulanır.
+                    {t("Gerilim girilmezse muhafazakâr (en geniş) emniyet marjı uygulanır.")}
                   </div>
                 )}
               </div>

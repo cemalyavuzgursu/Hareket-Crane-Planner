@@ -74,6 +74,56 @@ export interface CraneDimensions {
   superstructure_deck_height_m?: number; // döner platform güvertesi
   counterweight_height_m?: number; // denge bloğu yüksekliği
   boom_stowed_length_m?: number; // bazik bom uzunluğu
+  /** Slew merkezinin şasi ön ucuna uzaklığı (m). */
+  slew_center_from_front_m?: number;
+  /** Ana bom bölüm sayısı (bazik + teleskoplar). */
+  boom_sections?: number;
+  /** Bazik bom kesit yüksekliği / genişliği (m). */
+  boom_base_depth_m?: number;
+  boom_base_width_m?: number;
+  /** Arka ayakların slew merkezine uzaklığının toplam boyuna açıklığa oranı
+   * (rear / Lx). 0,5 = simetrik. Çizimden: ön ayaklar genelde daha uzakta. */
+  outrigger_rear_fraction?: number;
+  /** Tam denge ağırlığı (t) — plaka yığını yüksekliğini ölçeklemek için. */
+  counterweight_max_t?: number;
+  /** Denge bloğu derinliği (bom ekseni boyunca) / genişliği (m). */
+  counterweight_depth_m?: number;
+  counterweight_width_m?: number;
+  /** Ayak kutularının slew merkezine göre şasi ekseni X konumları [arka, ön] (m). */
+  outrigger_x_m?: number[];
+  /** Marka rengi (çizim). */
+  color?: string;
+  /** Datasheet'te bulunamayıp TAHMİN edilen alanların listesi. */
+  estimated_fields?: string[];
+}
+
+/** [x, y] metre noktası (profil çizimi). */
+export type ProfilePt = [number, number];
+
+/** Renkli bir profil parçası (poligon). */
+export interface ProfilePart {
+  /** Poligon noktaları (metre, SEYİR hâli, zemin y=0). */
+  pts: ProfilePt[];
+  /** colors anahtarı ("body", "chassis", "glass", …) veya doğrudan #hex. */
+  color: string;
+  /** 3B'de kalınlık (m) — verilmezse gövde genişliği. */
+  width?: number;
+  /** 3B'de yanal yerleşim: "left" / "right" / "center" (varsayılan center). */
+  side?: "left" | "right" | "center";
+}
+
+/**
+ * Vince özgü görünüm — üretici ölçü çiziminden çıkarılmış yan profiller.
+ * carrier: x = şasi ÖN ucundan arkaya (m). superstructure: u = slew merkezinden
+ * bom yönüne (seyirde öne) (m). y = seyir hâlinde zeminden yükseklik.
+ */
+export interface CraneAppearance {
+  source: string;
+  colors: Record<string, string>;
+  carrier: ProfilePart[];
+  superstructure: ProfilePart[];
+  /** Tam denge ağırlığının yan kutusu (u0,u1,y0,y1) — plaka yığını tonajla ölçeklenir. */
+  counterweight_box?: { u0: number; u1: number; y0: number; y1: number };
 }
 
 /** Yük tablosundaki üretici amblemi/işareti (ör. * = yalnız arka). */
@@ -97,6 +147,8 @@ export interface CraneModel {
   geometry_source?: string;
   /** Fiziksel ölçüler (broşürden) — vinçe özgü doğru 2B/3B çizim için. */
   dimensions?: CraneDimensions;
+  /** Vince özgü görünüm (çizimden profil + renkler). Yoksa genel parametrik çizim. */
+  appearance?: CraneAppearance;
   self_weight: number | null;
   /**
    * Kapasite modu seçenekleri. Liebherr/Excel vinçlerinde [75, 85]; SANY gibi
@@ -151,6 +203,7 @@ export type SceneObjectKind =
   | "truck" // kamyon / araç
   | "person" // personel
   | "powerline" // enerji hattı (yükseklikte yatay tehlike)
+  | "underground" // yer altı yapısı (boru/kanal/bodrum) — y<0; ayak tablası yakınlığı kontrolü
   | "model"; // içe aktarılmış 3B model (glTF/GLB)
 
 /**
@@ -199,4 +252,16 @@ export interface LiftInputs {
   radius: number; // radius (m)
   counterweight: number; // denge ağırlığı (t)
   capacity_pct: number; // kapasite oranı (%) — 75 veya 85
+  /** Engel genişliği (m) — "centered" klerens modelinde kritik köşeye girer. */
+  obstacle_width?: number;
+  /** Klerens geometri modeli; varsayılan "centered" (gerçek). "excel" = Autocrane.xls birebir. */
+  clearance_model?: "centered" | "excel";
+  /** Yükün alt yüzünün zeminden yüksekliği (m) — kaldırma (hoist) durumu. Yoksa engel yüksekliği. */
+  load_bottom_height?: number;
+  /** Kaldırma aparatlarının (sapan/traverse/kiriş) kanca altı toplam yüksekliği (m). */
+  rigging_height?: number;
+  /** Yükün rüzgâr alan yüzeyi A_p (m²) — rüzgâr limiti için. */
+  load_wind_area_m2?: number;
+  /** Yükün rüzgâr direnç katsayısı c_w (varsayılan 1,2). */
+  load_drag_coefficient?: number;
 }

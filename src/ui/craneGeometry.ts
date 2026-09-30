@@ -39,11 +39,8 @@ export function sideGeometry(
   g: GeometryConstants,
   c: ClearanceResult,
   boom_length: number,
-  radius: number,
   load_height: number,
-  load_diameter: number,
   obstacle_height: number,
-  obstacle_distance: number,
 ): SideGeometry {
   const base = g.cribbing_height + g.machine_ground_height;
   const foot: Pt = { x: -g.boom_offset, y: base };
@@ -61,12 +58,12 @@ export function sideGeometry(
 
   // Kritik köşeler (mutlak dünya koordinatı) — clearance.ts ile aynı:
   const loadCorner: Pt = {
-    x: radius - load_diameter,
+    x: c.load_corner_x, // modele göre: centered → radius − çap/2
     y: load_height + obstacle_height,
   };
   const obstacleCorner: Pt | null =
     obstacle_height > 0
-      ? { x: radius - obstacle_distance, y: obstacle_height }
+      ? { x: c.obstacle_corner_x, y: obstacle_height }
       : null;
 
   // Bir noktadan klerens doğrusuna dik ayak (izdüşüm) — çizimde dik çizgi için.
@@ -93,58 +90,5 @@ export function sideGeometry(
   };
 }
 
-export interface JibGeometry {
-  foot: Pt;
-  boomTip: Pt;
-  jibTip: Pt;
-  boomAngle: number; // rad
-  jibAngle: number; // rad (yataya göre)
-  ok: boolean; // çözüm bulundu mu (radius erişilebilir mi)
-}
-
-/**
- * Jib modu geometrisi: bom açısı θ'yı, jib ucu yatayda `radius`'a düşecek şekilde
- * çözer. Jib, bom ekseninden `offset`° aşağıda uzanır.
- *   x_tip = -boom_offset + B·cosθ + J·cos(θ − offset)
- * θ ∈ [10°, 85°] aralığında ikili arama (dik boma yakın kök tercih edilir).
- */
-export function jibGeometry(
-  boom_offset: number,
-  base_height: number,
-  boom_length: number,
-  jib_length: number,
-  jib_offset_deg: number,
-  radius: number,
-): JibGeometry {
-  const phi = (jib_offset_deg * Math.PI) / 180;
-  const foot: Pt = { x: -boom_offset, y: base_height };
-  const reach = (theta: number) =>
-    -boom_offset + boom_length * Math.cos(theta) + jib_length * Math.cos(theta - phi);
-
-  // reach(θ) θ arttıkça azalır (daha dik → daha az yatay erişim). Bisection.
-  let lo = (10 * Math.PI) / 180;
-  let hi = (86 * Math.PI) / 180;
-  let ok = true;
-  if (radius > reach(lo)) {
-    // Çok uzak — erişilemez; en yatık açıyı kullan.
-    ok = false;
-  } else if (radius < reach(hi)) {
-    ok = false;
-  }
-  let theta = (lo + hi) / 2;
-  for (let i = 0; i < 60; i++) {
-    theta = (lo + hi) / 2;
-    if (reach(theta) > radius) lo = theta;
-    else hi = theta;
-  }
-  const boomTip: Pt = {
-    x: foot.x + boom_length * Math.cos(theta),
-    y: foot.y + boom_length * Math.sin(theta),
-  };
-  const jibAngle = theta - phi;
-  const jibTip: Pt = {
-    x: boomTip.x + jib_length * Math.cos(jibAngle),
-    y: boomTip.y + jib_length * Math.sin(jibAngle),
-  };
-  return { foot, boomTip, jibTip, boomAngle: theta, jibAngle, ok };
-}
+// Jib geometrisi motora taşındı (çarpışma/klerens de kullanıyor) — geriye uyum için yeniden dışa aktarılır.
+export { jibGeometry, type JibGeometry } from "../engine/jib";

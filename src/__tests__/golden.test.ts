@@ -21,6 +21,9 @@ const inputs: LiftInputs = {
   radius: 9,
   counterweight: 40,
   capacity_pct: 85,
+  // Excel paritesi: Autocrane.xls'in kendi (muhafazakâr) geometri kabulü.
+  // Uygulamanın varsayılanı "centered" (gerçek geometri) — bkz. clearance-model.test.ts.
+  clearance_model: "excel",
 };
 
 const TOL = 0.01;

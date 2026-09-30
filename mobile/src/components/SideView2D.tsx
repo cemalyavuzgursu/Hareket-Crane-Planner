@@ -50,9 +50,10 @@ export default function SideView2D(props: SideView2DProps) {
   const tip = { x: foot.x + boom_length * ux, y: foot.y + boom_length * uy };
   const loadX = radius;
   const obstacleX = radius - obstacle_distance;
-  // clearance.ts (Excel) konvansiyonu: kanca yükün UZAK kenarında (x=radius),
-  // kritik iç köşe (radius−load_diameter); yük engel ÜSTÜNDEN geçirilir.
-  const loadL = radius - load_diameter;
+  // clearance.ts modeliyle birebir: gerçek geometride kanca yükün ağırlık
+  // merkezinin üstünde (kritik köşe radius − çap/2); yük engel ÜSTÜNDEN geçer.
+  const loadL = clearance.load_corner_x;
+  const loadR = loadL + load_diameter;
   const loadBot = obstacle_height;
   const loadTop = obstacle_height + load_height;
   const warn = clearance.clearance_to_load < 0 || clearance.clearance_to_obstacle < 0;
@@ -164,10 +165,10 @@ export default function SideView2D(props: SideView2DProps) {
 
       {/* Yük — kanca uzak kenar üstünde, kutu engel üstünden geçer */}
       <Line x1={X(loadX)} y1={Y(loadTop + 0.55)} x2={X(loadL + 0.3)} y2={Y(loadTop)} stroke={steel} strokeWidth={1.2} />
-      <Line x1={X(loadX)} y1={Y(loadTop + 0.55)} x2={X(loadX - 0.3)} y2={Y(loadTop)} stroke={steel} strokeWidth={1.2} />
+      <Line x1={X(loadX)} y1={Y(loadTop + 0.55)} x2={X(loadR - 0.3)} y2={Y(loadTop)} stroke={steel} strokeWidth={1.2} />
       <Rect x={X(loadL)} y={Y(loadTop)} width={X(load_diameter) - X(0)} height={Y(loadBot) - Y(loadTop)}
         rx={2} fill={warn ? "rgba(255,90,77,0.16)" : "rgba(110,134,166,0.18)"} stroke={warn ? C.red : steel} strokeWidth={1.6} />
-      <SvgText x={X(loadX - load_diameter / 2)} y={(Y(loadTop) + Y(loadBot)) / 2 + 4} fill="#dbe6f2" fontSize={12} textAnchor="middle" fontWeight="600">YÜK</SvgText>
+      <SvgText x={X(loadL + load_diameter / 2)} y={(Y(loadTop) + Y(loadBot)) / 2 + 4} fill="#dbe6f2" fontSize={12} textAnchor="middle" fontWeight="600">YÜK</SvgText>
 
       {/* Engel */}
       {obstacle_height > 0 && (() => {

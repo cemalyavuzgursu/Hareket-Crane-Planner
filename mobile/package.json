@@ -14,10 +14,14 @@
     "preexport": "node scripts/sync-shared.mjs",
     "export": "expo export",
     "pretypecheck": "node scripts/sync-shared.mjs",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "precheck:import": "node scripts/sync-shared.mjs",
+    "check:import": "node scripts/check-import.mjs"
   },
   "dependencies": {
     "expo": "~51.0.28",
+    "expo-document-picker": "~12.0.2",
+    "expo-file-system": "~17.0.1",
     "expo-status-bar": "~1.12.1",
     "react": "18.2.0",
     "react-native": "0.74.5",

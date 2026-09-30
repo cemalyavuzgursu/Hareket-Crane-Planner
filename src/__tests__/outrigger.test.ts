@@ -41,11 +41,20 @@ describe("cornerLoadsAtAngle", () => {
     expect(sum).toBeCloseTo(V, 6);
   });
 
-  it("slew=0 (arka/+x) yükü ön köşeleri ağırlaştırır", () => {
+  it("slew=0 (arka/+x) yükü ARKA köşeleri ağırlaştırır", () => {
     const at = cornerLoadsAtAngle(base, 0);
-    const fr = at.corners.find((c) => c.label === "FR")!;
     const rl = at.corners.find((c) => c.label === "RL")!;
-    expect(fr.load).toBeGreaterThan(rl.load);
+    const rr = at.corners.find((c) => c.label === "RR")!;
+    const fr = at.corners.find((c) => c.label === "FR")!;
+    const fl = at.corners.find((c) => c.label === "FL")!;
+    expect(rl.load).toBeGreaterThan(fr.load);
+    expect(rr.load).toBeGreaterThan(fl.load);
+    expect(at.max_corner.label.startsWith("R")).toBe(true);
+  });
+
+  it("slew=180 (ön) yükü ÖN köşeleri ağırlaştırır", () => {
+    const at = cornerLoadsAtAngle(base, 180);
+    expect(at.max_corner.label.startsWith("F")).toBe(true);
   });
 
   it("normal senaryoda ayak kalkması/devrilme bayrağı yok", () => {
@@ -73,11 +82,11 @@ describe("cornerLoadsAtAngle", () => {
     const sum = at.corners.reduce((s, c) => s + c.load, 0);
     expect(sum).toBeCloseTo(V, 6); // kuvvet dengesi korunur
     for (const c of at.corners) expect(c.load).toBeGreaterThanOrEqual(0); // ayak çekemez
-    const rl = at.corners.find((c) => c.label === "RL")!;
-    expect(rl.load).toBeCloseTo(0, 9); // kalkan ayak
+    const fr = at.corners.find((c) => c.label === "FR")!; // (−x, −y) köşesi
+    expect(fr.load).toBeCloseTo(0, 9); // kalkan ayak
     // Moment dengesi: ΣP·x = V·ex, ΣP·y = V·ey
     const mx = at.corners.reduce((s, c) => {
-      const sx = c.label.endsWith("R") ? 1 : -1;
+      const sx = c.label.startsWith("R") ? 1 : -1; // R = arka = +x
       return s + c.load * sx * 4;
     }, 0);
     expect(mx).toBeCloseTo(V * at.cog_x, 6);
@@ -126,11 +135,11 @@ describe("cornerLoadsAtAngle", () => {
     const V = inp.crane_self_weight + inp.counterweight + inp.total_load;
     const sum = at.corners.reduce((s, c) => s + c.load, 0);
     expect(sum).toBeCloseTo(V, 6);
-    // Yük tarafı (FR/RR, sx=+1) köşeleri kalkar; CW tarafı (FL/RL) ağırlaşır.
-    const fr = at.corners.find((c) => c.label === "FR")!;
+    // Yük tarafı (arka RL/RR, sx=+1) köşeleri kalkar; CW tarafı (ön FL/FR) ağırlaşır.
+    const rl = at.corners.find((c) => c.label === "RL")!;
     const fl = at.corners.find((c) => c.label === "FL")!;
-    expect(fr.load).toBeCloseTo(0, 6);
-    expect(fr.load).toBeLessThan(fl.load);
+    expect(rl.load).toBeCloseTo(0, 6);
+    expect(rl.load).toBeLessThan(fl.load);
   });
 
   it("boom_weight/boom_cog_offset/counterweight_radius verilmeyince eski davranışla birebir aynı", () => {

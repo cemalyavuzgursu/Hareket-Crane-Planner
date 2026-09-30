@@ -6,7 +6,7 @@ export interface AppState extends LiftInputs {
   craneModel: string;
   outrigger_config: string;
   slew_angle: number;
-  obstacle_width: number; // yalnız çizim
+  obstacle_width: number; // engel genişliği — kritik köşe = merkez − genişlik/2
   /** Kaldırma konfigürasyonu: "T" = jibsiz ana bom, aksi halde jib modu. */
   lift_config: LiftConfig;
   /** Jib uzunluğu (m) — yalnız jib modunda kullanılır. */

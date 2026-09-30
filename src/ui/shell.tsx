@@ -5,6 +5,7 @@
  *   - Menu       : menü çubuğu açılır menüsü
  */
 import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useI18n } from "./i18n";
 
 /** Panel içi katlanır bölüm (akordeon). */
 export function Section({
@@ -55,12 +56,13 @@ export function SidePanel({
   railIcons?: RailIcon[];
   children: ReactNode;
 }) {
+  const { t } = useI18n();
   if (collapsed) {
     return (
       <div className={`panel-col ${side} collapsed`}>
         <button
           className="panel-expand"
-          title={`${title} panelini genişlet`}
+          title={t("{title} panelini genişlet", { title })}
           onClick={onToggle}
           type="button"
         >
@@ -79,7 +81,7 @@ export function SidePanel({
     <div className={`panel-col ${side}`}>
       <div className="panel-head">
         <span className="panel-head-title">{title}</span>
-        <button className="panel-collapse" title="Paneli katla" onClick={onToggle} type="button">
+        <button className="panel-collapse" title={t("Paneli katla")} onClick={onToggle} type="button">
           {side === "left" ? "«" : "»"}
         </button>
       </div>
@@ -94,6 +96,8 @@ export interface MenuAction {
   onClick?: () => void;
   separator?: boolean;
   disabled?: boolean;
+  /** Seçili/aktif öğe işareti (✓). */
+  checked?: boolean;
 }
 
 /** Menü çubuğu öğesi + açılır menü. */
@@ -128,7 +132,12 @@ export function Menu({ label, items }: { label: string; items: MenuAction[] }) {
                   setOpen(false);
                 }}
               >
-                <span>{it.label}</span>
+                <span>
+                  {it.checked != null && (
+                    <span style={{ display: "inline-block", width: 14, opacity: it.checked ? 1 : 0 }}>✓</span>
+                  )}
+                  {it.label}
+                </span>
                 {it.shortcut && <span className="sc">{it.shortcut}</span>}
               </div>
             ),

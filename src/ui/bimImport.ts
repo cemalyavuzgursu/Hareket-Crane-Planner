@@ -1,5 +1,5 @@
 /**
- * bimImport.ts — BIM/CAD dosyalarını (.ifc, .obj) içe aktarma.
+ * bimImport.ts — BIM/CAD dosyalarını (.ifc, .obj, .dxf) içe aktarma.
  *
  * Strateji: her formatı bir THREE.Object3D'ye çözüp GLTFExporter ile bir GLB
  * blob URL'ine dönüştürürüz. Böylece sahnedeki render tek (doğrulanmış) glTF
@@ -8,6 +8,9 @@
  *   - .glb / .gltf : doğrudan object URL (dönüştürme gerekmez)
  *   - .obj         : three OBJLoader → GLB
  *   - .ifc         : web-ifc (WASM) geometri çıkarımı → GLB
+ *   - .dxf         : dxf-parser (MIT) → dxfImport.ts → GLB (gerçek ölçü, metre)
+ *   - .dwg         : desteklenmez (tek açık okuyucu libredwg GPL) → kullanıcıya
+ *                    DXF olarak kaydetmesi söylenir (ObjectLibrary)
  *
  * Not: web-ifc WASM dosyası public/wasm/ altından yerel olarak yüklenir
  * (scripts/copy-wasm.mjs her dev/build öncesi node_modules/web-ifc'ten
@@ -27,12 +30,14 @@ import {
 } from "three";
 import { GLTFExporter } from "three/examples/jsm/exporters/GLTFExporter.js";
 import { OBJLoader } from "three/examples/jsm/loaders/OBJLoader.js";
+import { dxfTextToObject, type DxfImportOptions, type DxfSize } from "./dxfImport";
+import { tStatic } from "./i18n";
 
-export type ImportableExt = "glb" | "gltf" | "obj" | "ifc";
+export type ImportableExt = "glb" | "gltf" | "obj" | "ifc" | "dxf";
 
 /** Dosya adından desteklenen uzantıyı çıkar (yoksa null). */
 export function importableExt(name: string): ImportableExt | null {
-  const m = name.toLowerCase().match(/\.(glb|gltf|obj|ifc)$/);
+  const m = name.toLowerCase().match(/\.(glb|gltf|obj|ifc|dxf)$/);
   return m ? (m[1] as ImportableExt) : null;
 }
 
@@ -146,25 +151,61 @@ async function ifcToGlbUrl(file: File): Promise<string> {
   }
 
   if (root.children.length === 0) {
-    throw new Error("IFC dosyasında görüntülenebilir geometri bulunamadı.");
+    throw new Error(tStatic("IFC dosyasında görüntülenebilir geometri bulunamadı."));
   }
   return objectToGlbUrl(root);
 }
 
+/** .dxf → GLB blob URL + gerçek ölçüler (metre). */
+async function dxfToGlb(
+  file: File,
+  opts: DxfImportOptions,
+): Promise<{ url: string; size: DxfSize }> {
+  const { object, data } = dxfTextToObject(await file.text(), opts);
+  return { url: await objectToGlbUrl(object), size: data.size };
+}
+
+/** DWG seçildiğinde gösterilecek açıklama (DWG okuyucusu GPL — eklenmedi). */
+export const DWG_UNSUPPORTED_MSG =
+  "DWG doğrudan okunamıyor (lisans). AutoCAD/DWG TrueView'da 'Farklı Kaydet → DXF' ile kaydedip .dxf olarak içe aktarın.";
+
+export function isDwg(name: string): boolean {
+  return /\.dwg$/i.test(name);
+}
+
+export type ImportOptions = DxfImportOptions;
+
+export interface ImportedModel {
+  url: string;
+  /** Dosyadan okunan gerçek ölçüler (m) — bilinmiyorsa undefined (şu an yalnız DXF). */
+  size?: DxfSize;
+}
+
 /**
- * Bir dosyayı içe aktarılabilir GLB/glTF object URL'ine çevirir.
- * .glb/.gltf doğrudan; .obj/.ifc dönüştürülerek.
+ * Bir dosyayı içe aktarılabilir GLB/glTF object URL'ine çevirir; biliniyorsa
+ * gerçek sınırlayıcı kutu ölçülerini de döndürür.
  */
-export async function fileToModelUrl(file: File): Promise<string> {
+export async function fileToModel(file: File, opts: ImportOptions = {}): Promise<ImportedModel> {
+  if (isDwg(file.name)) throw new Error(tStatic(DWG_UNSUPPORTED_MSG));
   const ext = importableExt(file.name);
-  if (!ext) throw new Error(`Desteklenmeyen dosya türü: ${file.name}`);
+  if (!ext) throw new Error(tStatic("Desteklenmeyen dosya türü: {name}", { name: file.name }));
   switch (ext) {
     case "glb":
     case "gltf":
-      return URL.createObjectURL(file);
+      return { url: URL.createObjectURL(file) };
     case "obj":
-      return objToGlbUrl(file);
+      return { url: await objToGlbUrl(file) };
     case "ifc":
-      return ifcToGlbUrl(file);
+      return { url: await ifcToGlbUrl(file) };
+    case "dxf":
+      return dxfToGlb(file, opts);
   }
+}
+
+/**
+ * Bir dosyayı içe aktarılabilir GLB/glTF object URL'ine çevirir.
+ * .glb/.gltf doğrudan; .obj/.ifc/.dxf dönüştürülerek.
+ */
+export async function fileToModelUrl(file: File, opts: ImportOptions = {}): Promise<string> {
+  return (await fileToModel(file, opts)).url;
 }

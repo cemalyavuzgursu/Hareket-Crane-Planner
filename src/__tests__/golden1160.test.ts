@@ -21,6 +21,7 @@ const inputs: LiftInputs = {
   radius: 4.5,
   counterweight: 24,
   capacity_pct: 85,
+  clearance_model: "excel", // Excel paritesi (bkz. golden.test.ts notu)
 };
 
 describe("GOLDEN TEST 2 — LTM 1160", () => {

@@ -16,14 +16,16 @@ export interface GroundForceDiagramProps {
   radius: number;
   slewAngle: number;
   width: number;
+  /** Ayak dikdörtgeni merkezinin slew merkezine göre X'i (asimetrik ayak). */
+  rectCenterX?: number;
 }
 
 const CORNER_TR: Record<string, string> = {
   FR: "ÖN SAĞ", FL: "ÖN SOL", RR: "ARKA SAĞ", RL: "ARKA SOL",
 };
 const CORNER_SIGNS: Record<string, { sx: 1 | -1; sy: 1 | -1 }> = {
-  FR: { sx: +1, sy: +1 }, FL: { sx: -1, sy: +1 },
-  RR: { sx: +1, sy: -1 }, RL: { sx: -1, sy: -1 },
+  RL: { sx: +1, sy: +1 }, FL: { sx: -1, sy: +1 },
+  RR: { sx: +1, sy: -1 }, FR: { sx: -1, sy: -1 },
 };
 const DEG = Math.PI / 180;
 const finite = (n: number, f: number) => (Number.isFinite(n) ? n : f);
@@ -43,7 +45,8 @@ export default function GroundForceDiagram(props: GroundForceDiagramProps) {
 
   const VB = 360;
   const cx = VB / 2, cy = VB / 2, margin = 66;
-  const span = Math.max(Lx, Ly, 2 * radius, 1);
+  const slewCX = -finite(props.rectCenterX ?? 0, 0);
+  const span = Math.max(Lx, Ly, 2 * (radius + Math.abs(slewCX)), 1);
   const scale = (VB - 2 * margin) / span;
   const px = (wx: number, wy: number) => ({ x: cx + wy * scale, y: cy - wx * scale });
 
@@ -63,7 +66,8 @@ export default function GroundForceDiagram(props: GroundForceDiagramProps) {
   };
 
   const a = slewAngle * DEG;
-  const loadPt = px(radius * Math.cos(a), radius * Math.sin(a));
+  const loadPt = px(slewCX + radius * Math.cos(a), radius * Math.sin(a));
+  const scPt = px(slewCX, 0);
   const cogPt = px(cogX, cogY);
   const cogOutside = Math.abs(cogX) > halfLx || Math.abs(cogY) > halfLy;
 
@@ -85,11 +89,11 @@ export default function GroundForceDiagram(props: GroundForceDiagramProps) {
         <Rect x={rectX} y={rectY} width={rectW} height={rectH} fill="rgba(255,186,32,0.04)"
           stroke={C.accent} strokeOpacity={0.5} strokeWidth={1.5} rx={4} />
 
-        <SvgText x={cx} y={rectY - 10} fill={C.textFaint} fontSize={11} textAnchor="middle">ÖN ↑</SvgText>
+        <SvgText x={cx} y={rectY + rectH + 58} fill={C.textFaint} fontSize={11} textAnchor="middle">ÖN ↓ · ARKA ↑ (0°)</SvgText>
 
         {/* Radius vektörü */}
         {radius > 0 && (
-          <Line x1={cx} y1={cy} x2={loadPt.x} y2={loadPt.y} stroke={C.blue} strokeOpacity={0.6} strokeWidth={1.2} strokeDasharray="4 3" />
+          <Line x1={scPt.x} y1={scPt.y} x2={loadPt.x} y2={loadPt.y} stroke={C.blue} strokeOpacity={0.6} strokeWidth={1.2} strokeDasharray="4 3" />
         )}
 
         {/* 4 köşe */}

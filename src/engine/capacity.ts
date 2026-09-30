@@ -10,6 +10,21 @@ export interface CapacityResult {
   status: "UYGUN" | "KAPASİTE AŞIMI";
   /** Kullanım bandı: >100% "over", >=90% "warning", altı "ok". */
   severity: "ok" | "warning" | "over";
+  /** Yalnız esnek (lenient) hesapta: konfigürasyon yük tablosu dışında → kaldırma
+   * yapılamaz. rated_capacity 0, utilization_pct Infinity, status "KAPASİTE AŞIMI". */
+  out_of_range?: string;
+}
+
+/** Tablo dışı (hesaplanamayan) kapasite sonucu — esnek hesapta hata yerine döner. */
+export function outOfRangeCapacity(total_load: number, message: string): CapacityResult {
+  return {
+    total_load,
+    rated_capacity: 0,
+    utilization_pct: Infinity,
+    status: "KAPASİTE AŞIMI",
+    severity: "over",
+    out_of_range: message,
+  };
 }
 
 /** utilization_pct'ten severity bandını hesaplar (>100 over, >=90 warning, altı ok). */

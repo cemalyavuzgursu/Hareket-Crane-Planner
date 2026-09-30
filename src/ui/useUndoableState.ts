@@ -5,23 +5,32 @@
  * değeri değiştirir (ör. localStorage'dan ilk yükleme, proje dosyası açma —
  * bunlar "geri alınabilir bir düzenleme" değil, yeni bir başlangıç noktasıdır).
  */
-import { useCallback, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 
 const MAX_HISTORY = 50;
+/** Bu süreden (ms) kısa aralıklarla gelen değişiklikler TEK geçmiş adımı sayılır
+ * (3B sürükleme her karede set çağırır — tek Ctrl+Z tüm sürüklemeyi geri almalı). */
+const COALESCE_MS = 400;
 
 export function useUndoableState<T>(initial: T | (() => T)) {
   const [present, setPresent] = useState<T>(initial);
   const [past, setPast] = useState<T[]>([]);
   const [future, setFuture] = useState<T[]>([]);
+  const lastSetAt = useRef(0);
 
   const set = useCallback((updater: T | ((prev: T) => T)) => {
+    const now = Date.now();
+    const coalesce = now - lastSetAt.current < COALESCE_MS;
+    lastSetAt.current = now;
     setPresent((prev) => {
       const next = typeof updater === "function" ? (updater as (p: T) => T)(prev) : updater;
       if (next === prev) return prev;
-      setPast((p) => {
-        const np = [...p, prev];
-        return np.length > MAX_HISTORY ? np.slice(np.length - MAX_HISTORY) : np;
-      });
+      if (!coalesce) {
+        setPast((p) => {
+          const np = [...p, prev];
+          return np.length > MAX_HISTORY ? np.slice(np.length - MAX_HISTORY) : np;
+        });
+      }
       setFuture([]);
       return next;
     });

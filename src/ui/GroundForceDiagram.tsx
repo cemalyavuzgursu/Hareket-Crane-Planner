@@ -4,6 +4,8 @@
 // merkezini işaretler ve yükün plan konumunu çizer. Slew açısıyla canlı değişir.
 
 import type { OutriggerAtAngle } from "../engine/outrigger";
+import { useI18n } from "./i18n";
+import { useUnits } from "./units";
 
 export interface GroundForceDiagramProps {
   Lx: number; // ayak açıklığı X (m) — ileri/arka
@@ -13,6 +15,9 @@ export interface GroundForceDiagramProps {
   padArea?: number; // takoz temas alanı (m²) — köşe basıncı için (t/m²)
   radius: number; // yük yarıçapı (m)
   slewAngle: number; // mevcut dönme açısı (derece)
+  /** Ayak dikdörtgeni merkezinin slew merkezine göre X'i (OutriggerResult.rect_center_x).
+   * Asimetrik ayaklarda slew merkezi dikdörtgen merkezinde değildir. */
+  rectCenterX?: number;
 }
 
 // Köşe etiketlerinin Türkçe karşılıkları.
@@ -24,12 +29,12 @@ const CORNER_TR: Record<string, string> = {
 };
 
 // Köşe etiketinin slew-yerel plan konumundaki işaretleri (sx: ±Lx/2, sy: ±Ly/2).
-// FR=(+Lx/2,+Ly/2), FL=(-Lx/2,+Ly/2), RR=(+Lx/2,-Ly/2), RL=(-Lx/2,-Ly/2)
+// +X = arka (slew 0°). RL=(+Lx/2,+Ly/2), FL=(-Lx/2,+Ly/2), RR=(+Lx/2,-Ly/2), FR=(-Lx/2,-Ly/2)
 const CORNER_SIGNS: Record<string, { sx: 1 | -1; sy: 1 | -1 }> = {
-  FR: { sx: +1, sy: +1 },
+  RL: { sx: +1, sy: +1 },
   FL: { sx: -1, sy: +1 },
   RR: { sx: +1, sy: -1 },
-  RL: { sx: -1, sy: -1 },
+  FR: { sx: -1, sy: -1 },
 };
 
 /** Sonlu değilse fallback'e düş. */
@@ -40,6 +45,8 @@ function finite(n: number, fallback: number): number {
 const DEG = Math.PI / 180;
 
 export default function GroundForceDiagram(props: GroundForceDiagramProps): JSX.Element {
+  const { t } = useI18n();
+  const u = useUnits();
   // --- Girdileri sağlamlaştır (NaN guard, Lx/Ly<=0 ise minimum 2) ---
   const Lx = Math.max(finite(props.Lx, 2), 2);
   const Ly = Math.max(finite(props.Ly, 2), 2);
@@ -52,6 +59,8 @@ export default function GroundForceDiagram(props: GroundForceDiagramProps): JSX.
   const maxCornerLoad = finite(props.atAngle?.max_corner?.load ?? 0, 0);
   const cogX = finite(props.atAngle?.cog_x ?? 0, 0);
   const cogY = finite(props.atAngle?.cog_y ?? 0, 0);
+  // Diyagram dikdörtgen merkezli; slew merkezi (−rectCenterX, 0)'dadır.
+  const slewCX = -finite(props.rectCenterX ?? 0, 0);
 
   // --- Ölçekleme ---
   // Dünya birimi: metre. Plan diyagramında +X (ileri) yukarı, +Y (sağ) sağa.
@@ -60,7 +69,7 @@ export default function GroundForceDiagram(props: GroundForceDiagramProps): JSX.
   const cx = VB / 2; // merkez (px)
   const cy = VB / 2;
   const margin = 64; // kenar payı (etiketler için)
-  const span = Math.max(Lx, Ly, 2 * radius, 1); // dünya genişliği (m)
+  const span = Math.max(Lx, Ly, 2 * (radius + Math.abs(slewCX)), 1); // dünya genişliği (m)
   const scale = (VB - 2 * margin) / span; // px / m
 
   // Dünya (m) -> SVG (px) dönüşümü.
@@ -73,8 +82,8 @@ export default function GroundForceDiagram(props: GroundForceDiagramProps): JSX.
   // --- Outrigger dikdörtgeni köşe pikselleri ---
   const halfLx = Lx / 2;
   const halfLy = Ly / 2;
-  const rectTL = px(+halfLx, -halfLy); // ön sol (üst sol)
-  const rectBR = px(-halfLx, +halfLy); // arka sağ (alt sağ)
+  const rectTL = px(+halfLx, -halfLy); // arka sağ (üst sol)
+  const rectBR = px(-halfLx, +halfLy); // ön sol (alt sağ)
   const rectX = Math.min(rectTL.x, rectBR.x);
   const rectY = Math.min(rectTL.y, rectBR.y);
   const rectW = Math.abs(rectBR.x - rectTL.x);
@@ -90,7 +99,8 @@ export default function GroundForceDiagram(props: GroundForceDiagramProps): JSX.
 
   // --- Yük plan konumu (slew-yerel, atAngle ile tutarlı) ---
   const a = slewAngle * DEG;
-  const loadWx = radius * Math.cos(a); // ileri/+X bileşeni
+  const scPt = px(slewCX, 0);
+  const loadWx = slewCX + radius * Math.cos(a); // arka/+X bileşeni
   const loadWy = radius * Math.sin(a); // yanal/+Y bileşeni
   const loadPt = px(loadWx, loadWy);
 
@@ -119,7 +129,7 @@ export default function GroundForceDiagram(props: GroundForceDiagramProps): JSX.
         preserveAspectRatio="xMidYMid meet"
         style={{ width: "100%", height: "100%", flex: 1, minHeight: 0, display: "block" }}
         role="img"
-        aria-label="Zemin kuvveti ve ağırlık merkezi diyagramı (üstten görünüm)"
+        aria-label={t("Zemin kuvveti ve ağırlık merkezi diyagramı (üstten görünüm)")}
       >
         {/* Merkez ekseni çizgileri (artı işareti, soluk) */}
         <line x1={rectX} y1={cy} x2={rectX + rectW} y2={cy} stroke="var(--border-2)" strokeWidth={1} strokeDasharray="2 4" />
@@ -138,16 +148,16 @@ export default function GroundForceDiagram(props: GroundForceDiagramProps): JSX.
           rx={4}
         />
 
-        {/* Yön etiketi: ÖN (yukarı) */}
-        <text x={cx} y={rectY - 10} fill="var(--text-faint)" fontSize={10} textAnchor="middle" style={{ letterSpacing: 1 }}>
-          ÖN ↑
+        {/* Yön etiketi: +X (yukarı) = şasi ARKASI = slew 0°; ön aşağıda */}
+        <text x={cx} y={rectY + rectH + 62} fill="var(--text-faint)" fontSize={10} textAnchor="middle" style={{ letterSpacing: 1 }}>
+          {t("ÖN")} ↓ · {t("ARKA")} ↑ (0°)
         </text>
 
         {/* Slew merkezinden yüke ince kesik çizgi (radius vektörü) */}
         {radius > 0 && (
           <line
-            x1={cx}
-            y1={cy}
+            x1={scPt.x}
+            y1={scPt.y}
             x2={loadPt.x}
             y2={loadPt.y}
             stroke="var(--blue)"
@@ -156,6 +166,12 @@ export default function GroundForceDiagram(props: GroundForceDiagramProps): JSX.
             strokeDasharray="4 3"
           />
         )}
+
+        {/* Slew (dönme) merkezi */}
+        <g stroke="var(--text-dim)" strokeWidth={1.2}>
+          <line x1={scPt.x - 6} y1={scPt.y} x2={scPt.x + 6} y2={scPt.y} />
+          <line x1={scPt.x} y1={scPt.y - 6} x2={scPt.x} y2={scPt.y + 6} />
+        </g>
 
         {/* 4 köşe (pad) — renk yüke göre */}
         {corners.map((c) => {
@@ -173,7 +189,7 @@ export default function GroundForceDiagram(props: GroundForceDiagramProps): JSX.
               <circle cx={p.x} cy={p.y} r={9} fill="none" stroke={col} strokeOpacity={0.35} strokeWidth={6} />
               {/* Köşe başlığı (Türkçe, küçük punto) */}
               <text x={baseTextX} y={baseTextY} fill="var(--text-faint)" fontSize={9} textAnchor={anchor} style={{ letterSpacing: 0.5 }}>
-                {CORNER_TR[c.label] ?? c.label}
+                {CORNER_TR[c.label] ? t(CORNER_TR[c.label]) : c.label}
               </text>
               {/* Yük değeri (mono) */}
               <text
@@ -185,7 +201,7 @@ export default function GroundForceDiagram(props: GroundForceDiagramProps): JSX.
                 textAnchor={anchor}
                 style={{ fontFamily: "var(--mono)" }}
               >
-                {finite(c.load, 0).toFixed(1)} t
+                {u.fmtMass(finite(c.load, 0), u.imperial ? 0 : 1)}
               </text>
               {/* Köşe basıncı (padArea verilmişse) */}
               {padArea && (
@@ -197,7 +213,7 @@ export default function GroundForceDiagram(props: GroundForceDiagramProps): JSX.
                   textAnchor={anchor}
                   style={{ fontFamily: "var(--mono)" }}
                 >
-                  {(finite(c.load, 0) / padArea).toFixed(1)} t/m²
+                  {u.fmtPressure(finite(c.load, 0) / padArea, u.imperial ? 0 : 1)}
                 </text>
               )}
             </g>
@@ -216,7 +232,7 @@ export default function GroundForceDiagram(props: GroundForceDiagramProps): JSX.
             textAnchor="middle"
             style={{ letterSpacing: 0.5 }}
           >
-            YÜK
+            {t("YÜK")}
           </text>
         </g>
 
@@ -259,7 +275,7 @@ export default function GroundForceDiagram(props: GroundForceDiagramProps): JSX.
         }}
       >
         <span style={{ fontFamily: "var(--mono)" }}>
-          V = {V.toFixed(1)} t · Açı = {slewAngle.toFixed(0)}°
+          V = {u.fmtMass(V, u.imperial ? 0 : 1)} · {t("Açı")} = {slewAngle.toFixed(0)}°
         </span>
         <span
           style={{
@@ -268,10 +284,10 @@ export default function GroundForceDiagram(props: GroundForceDiagramProps): JSX.
           }}
         >
           {cogOutside || props.atAngle?.tipping
-            ? "⚠ CoG ayak alanı dışında — DEVRİLME RİSKİ"
+            ? `⚠ ${t("CoG ayak alanı dışında — DEVRİLME RİSKİ")}`
             : props.atAngle?.uplift
-              ? "⚠ Ayak kalkması — bir ayak yüksüz"
-              : "✓ CoG ayak alanı içinde"}
+              ? `⚠ ${t("Ayak kalkması — bir ayak yüksüz")}`
+              : `✓ ${t("CoG ayak alanı içinde")}`}
         </span>
       </div>
     </div>

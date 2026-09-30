@@ -10,6 +10,295 @@
     "sheave_offset": 1.391,
     "boom_thickness": 1.25
   },
+  "dimensions": {
+    "source": "Liebherr LTM 1250/1 ölçü çizimi (Sarens broşürü s.1) — Excel 'LT 1250' ile birebir eşleşen model bulunamadı; görünüm ve şasi ölçüleri sınıftaki en yakın model LTM 1250/1'den. Bom mafsalı konumu hesap için Excel'den (boom_offset 3,33; LTM 1250/1 çiziminde 2,60).",
+    "carrier_length_m": 15.585,
+    "carrier_width_m": 3,
+    "body_width_m": 2.8,
+    "travel_height_m": 3.95,
+    "ground_clearance_m": 0.35,
+    "deck_height_m": 2.0,
+    "axle_count": 6,
+    "tire_diameter_m": 1.43,
+    "axle_positions_m": [
+      2.65,
+      4.5,
+      7.35,
+      9.0,
+      11.58,
+      13.23
+    ],
+    "wheelbase_front_m": 2.65,
+    "tail_radius_m": 5.6,
+    "cab_height_m": 2.4,
+    "boom_pivot_height_m": 3.65,
+    "boom_pivot_x_m": -3.33,
+    "superstructure_deck_height_m": 2.02,
+    "counterweight_height_m": 1.01,
+    "boom_stowed_length_m": 16.5,
+    "slew_center_from_front_m": 11.05,
+    "boom_sections": 5,
+    "boom_base_depth_m": 1.35,
+    "boom_base_width_m": 1.05,
+    "counterweight_max_t": 40,
+    "counterweight_depth_m": 2.44,
+    "counterweight_width_m": 2.9,
+    "color": "#f5c400",
+    "estimated_fields": [
+      "boom_base_depth_m",
+      "boom_base_width_m",
+      "counterweight_width_m",
+      "ground_clearance_m",
+      "tire_diameter_m (14.00 R25 ≈1,43 m)"
+    ],
+    "outrigger_rear_fraction": 0.42,
+    "outrigger_rear_fraction_source": "LTM 1250/1 çizimi: arka 3,496/3,904 m, ön 5,344/4,957 m (0,42) — Excel açıklığına ORAN olarak uygulandı (TAHMİNİ)"
+  },
+  "appearance": {
+    "source": "Liebherr LTM 1250/1 ölçü çizimi (Sarens broşürü s.1, sarens.com) — Excel 'LT 1250' ile eşleşen model bulunamadığından sınıftaki en yakın Liebherr görünümü; profiller çizimden metre ölçeğinde (≈59,3 px/m) çıkarıldı.",
+    "colors": {
+      "body": "#f5c400",
+      "chassis": "#2b2e33",
+      "glass": "#2c4257",
+      "boom": "#f5c400",
+      "cw": "#e3b400",
+      "dark": "#3a3f45"
+    },
+    "carrier": [
+      {
+        "pts": [
+          [
+            0.2,
+            0.76
+          ],
+          [
+            15.55,
+            0.76
+          ],
+          [
+            15.58,
+            1.1
+          ],
+          [
+            15.58,
+            1.4
+          ],
+          [
+            0.2,
+            1.4
+          ]
+        ],
+        "color": "chassis"
+      },
+      {
+        "pts": [
+          [
+            1.89,
+            1.4
+          ],
+          [
+            15.58,
+            1.4
+          ],
+          [
+            15.58,
+            1.97
+          ],
+          [
+            1.89,
+            1.97
+          ]
+        ],
+        "color": "body"
+      },
+      {
+        "pts": [
+          [
+            1.97,
+            1.97
+          ],
+          [
+            5.51,
+            1.97
+          ],
+          [
+            5.51,
+            2.36
+          ],
+          [
+            1.97,
+            2.36
+          ]
+        ],
+        "color": "body",
+        "width": 1.2,
+        "side": "right"
+      },
+      {
+        "pts": [
+          [
+            0.2,
+            0.76
+          ],
+          [
+            1.89,
+            0.76
+          ],
+          [
+            1.89,
+            2.36
+          ],
+          [
+            0.54,
+            2.36
+          ],
+          [
+            0.29,
+            1.85
+          ]
+        ],
+        "color": "body",
+        "width": 1.45,
+        "side": "left"
+      },
+      {
+        "pts": [
+          [
+            0.62,
+            1.52
+          ],
+          [
+            1.72,
+            1.52
+          ],
+          [
+            1.72,
+            2.24
+          ],
+          [
+            0.62,
+            2.24
+          ],
+          [
+            0.46,
+            1.8
+          ]
+        ],
+        "color": "glass",
+        "width": 1.5,
+        "side": "left"
+      }
+    ],
+    "superstructure": [
+      {
+        "pts": [
+          [
+            1.15,
+            1.97
+          ],
+          [
+            1.15,
+            2.82
+          ],
+          [
+            0.22,
+            3.25
+          ],
+          [
+            -3.07,
+            3.25
+          ],
+          [
+            -3.07,
+            1.97
+          ]
+        ],
+        "color": "body"
+      },
+      {
+        "pts": [
+          [
+            -3.07,
+            3.29
+          ],
+          [
+            -4.08,
+            3.29
+          ],
+          [
+            -4.08,
+            3.93
+          ],
+          [
+            -3.07,
+            3.93
+          ]
+        ],
+        "color": "dark",
+        "width": 1.6
+      },
+      {
+        "pts": [
+          [
+            2.24,
+            2.19
+          ],
+          [
+            2.16,
+            3.46
+          ],
+          [
+            1.91,
+            3.93
+          ],
+          [
+            1.06,
+            3.93
+          ],
+          [
+            1.06,
+            2.19
+          ]
+        ],
+        "color": "body",
+        "width": 1.05,
+        "side": "left"
+      },
+      {
+        "pts": [
+          [
+            2.12,
+            2.95
+          ],
+          [
+            1.15,
+            2.95
+          ],
+          [
+            1.15,
+            3.79
+          ],
+          [
+            1.99,
+            3.79
+          ],
+          [
+            2.09,
+            3.37
+          ]
+        ],
+        "color": "glass",
+        "width": 1.1,
+        "side": "left"
+      }
+    ],
+    "counterweight_box": {
+      "u0": -5.51,
+      "u1": -3.07,
+      "y0": 2.19,
+      "y1": 3.2
+    }
+  },
   "self_weight": 60.0,
   "boom_weight_t": 16,
   "boom_weight_source": "TAHMİNİ — Liebherr LTM1250-5.1 Technical Data'da bom öz-ağırlığı yayınlanmamış; muhafazakâr üst sınır (SANY SAC2500E 75,5m/7-bölüm bom kıyaslamasından ölçeklendirilmiştir).",
@@ -38,7 +327,7 @@
   "capacity_pct_options": [
     85
   ],
-  "notes": "load_chart[counterweight][capacity_pct][boom_length]=[[radius,capacity],...]. 85% set fully extracted (golden-validated). 75% only partial (boom 16.5) present in source Excel (cw0/pct75 ve cw40/pct75'in tek bomluk dalı veride bırakıldı ama capacity_pct_options'a alınmadı). self_weight=60t: Liebherr LTM1250-5.1 Technical Data s.10 (yol ağırlığı, 0t CW). load_chart[40][85][55.0] radius 46.5/47.0/47.5 noktaları düzeltildi: kaynak Autocrane.xls'te hücre formülü AB94:AB96 yanlışlıkla AC$93 (boş hücre) referans veriyordu (olması gereken AB$93, aynı sütun) — bu, r=46-48 arasındaki düzgün lineer düşüşü (6.90→5.90) 8.375/9.85/11.325 gibi kapasitenin arttığı imkânsız değerlere çeviriyordu; doğru formül deseniyle (komşu hücrelerdeki AB92 formülü örnek alınarak) yeniden hesaplandı: 46.5→6.65, 47.0→6.40, 47.5→6.15.",
+  "notes": "load_chart[counterweight][capacity_pct][boom_length]=[[radius,capacity],...]. 85% set fully extracted (golden-validated). 75% only partial (boom 16.5) present in source Excel (cw0/pct75 ve cw40/pct75'in tek bomluk dalı veride bırakıldı ama capacity_pct_options'a alınmadı). self_weight=60t: Liebherr LTM1250-5.1 Technical Data s.10 (yol ağırlığı, 0t CW). load_chart[40][85][55.0] radius 46.5/47.0/47.5 noktaları düzeltildi: kaynak Autocrane.xls'te hücre formülü AB94:AB96 yanlışlıkla AC$93 (boş hücre) referans veriyordu (olması gereken AB$93, aynı sütun) — bu, r=46-48 arasındaki düzgün lineer düşüşü (6.90→5.90) 8.375/9.85/11.325 gibi kapasitenin arttığı imkânsız değerlere çeviriyordu; doğru formül deseniyle (komşu hücrelerdeki AB92 formülü örnek alınarak) yeniden hesaplandı: 46.5→6.65, 47.0→6.40, 47.5→6.15. DİKKAT: Excel 'LT 1250' tablosu hiçbir yayınlanmış Liebherr tablosuyla eşleşmiyor (275 t @3 m, 40 t denge, 10,2×10,6 ayak). Bom uzunlukları bazik+strok·{0,1/3,2/3,5/6,1} desenine uyuyor (sentetik olabilir). self_weight/CW yarıçapı/rüzgâr değerleri LTM1250-5.1'den alınmıştır — gerçek makinenin datasheet'i ile doğrulanmalıdır.",
   "load_chart": {
     "40": {
       "85": {
@@ -2301,31 +2590,5 @@
       },
       "75": {}
     }
-  },
-  "datasheet_substitute": {
-    "source": "Sany SAC2500E brochure (Sany_crane-brochure_SAC2500E.pdf) — sınıf olarak en yakın 250t vinç; Excel'de eksik olan değerler buradan alındı.",
-    "gross_weight_t": 60.0,
-    "outrigger_span_LxT_m": [
-      9.0,
-      7.8
-    ],
-    "tail_slewing_radius_m": 5.3,
-    "counterweight_options_t": [
-      0,
-      5,
-      10,
-      15,
-      17,
-      22,
-      26.5,
-      31.5,
-      36,
-      41,
-      45.5,
-      50.5,
-      55,
-      60,
-      80
-    ]
   }
 }

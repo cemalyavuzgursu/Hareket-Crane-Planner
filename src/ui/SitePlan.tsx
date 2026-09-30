@@ -3,7 +3,7 @@
  *
  * Google Maps JavaScript API (uydu) üzerine vincin saha bağlamını çizer:
  *   - Çalışma yarıçapı dairesi (metre)
- *   - Outrigger ayak izi dikdörtgeni (slew açısıyla döner)
+ *   - Outrigger ayak izi dikdörtgeni (şasiye sabit, vinç yönüyle döner)
  *   - Vinç merkezi işareti
  *   - Çevre nesnelerinin ayak izleri (çakışanlar kırmızı)
  *
@@ -13,12 +13,18 @@
  */
 import { useEffect, useRef, useState } from "react";
 import type { SceneObject } from "../engine/types";
+import { tStatic, useI18n } from "./i18n";
+import { useUnits } from "./units";
 
 export interface SitePlanProps {
   Lx: number; // ayak açıklığı X (m)
   Ly: number; // ayak açıklığı Y (m)
   radius: number; // çalışma yarıçapı (m)
-  slewAngle: number; // dönme açısı (derece)
+  slewAngle: number; // dönme açısı (derece) — şasiye göre
+  /** Şasi yönü (°): şasi arkasının (+X) plan açısı. Varsayılan 0. */
+  heading?: number;
+  /** Arka ayakların slew merkezine uzaklığı / Lx (0,5 = simetrik). */
+  rearFraction?: number;
   objects: SceneObject[];
   collidingIds: string[];
 }
@@ -43,17 +49,23 @@ function loadGoogleMaps(key: string): Promise<any> {
       "&libraries=geometry&loading=async&callback=" +
       cb;
     s.async = true;
-    s.onerror = () => reject(new Error("Google Maps yüklenemedi (anahtar veya ağ hatası)."));
+    s.onerror = () => reject(new Error(tStatic("Google Maps yüklenemedi (anahtar veya ağ hatası).")));
     document.head.appendChild(s);
   });
   return loaderPromise;
 }
 
-export default function SitePlan({ Lx, Ly, radius, slewAngle, objects, collidingIds }: SitePlanProps) {
+export default function SitePlan({ Lx, Ly, radius, slewAngle, objects, collidingIds, heading = 0, rearFraction = 0.5 }: SitePlanProps) {
   const [key, setKey] = useState<string>(() => {
     try { return localStorage.getItem(KEY_LS) ?? ""; } catch { return ""; }
   });
   const [draft, setDraft] = useState("");
+  const { t } = useI18n();
+  const u = useUnits();
+  /** Metrikte ham değer (eski davranış), imperial'de 1 ondalık ft. */
+  const lenTxt = (m: number) => (u.imperial ? u.fmtLenN(m, 1) : String(m));
+  const tRef = useRef(t);
+  tRef.current = t;
   const [status, setStatus] = useState<"idle" | "loading" | "ready" | "error">("idle");
   const [err, setErr] = useState("");
 
@@ -113,7 +125,7 @@ export default function SitePlan({ Lx, Ly, radius, slewAngle, objects, colliding
   useEffect(() => {
     if (status === "ready") draw();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [Lx, Ly, radius, slewAngle, objects, collidingIds, status]);
+  }, [Lx, Ly, radius, slewAngle, heading, rearFraction, objects, collidingIds, status, t]);
 
   function clearOverlays() {
     overlays.current.forEach((o) => o.setMap && o.setMap(null));
@@ -144,16 +156,32 @@ export default function SitePlan({ Lx, Ly, radius, slewAngle, objects, colliding
       }),
     );
 
-    // Outrigger ayak izi dikdörtgeni (slew açısıyla döner; +x ileri = baz yön)
+    // Bom yönü: slew a → plan (cos a, sin a) → heading = a (nesnelerle aynı çerçeve).
+    push(
+      new google.maps.Polyline({
+        map,
+        path: [center, sph.computeOffset(center, Math.max(radius, 0.1), heading + slewAngle)],
+        strokeColor: "#ffba20",
+        strokeWeight: 3,
+        clickable: false,
+      }),
+    );
+
+    // Outrigger ayak izi dikdörtgeni — ŞASİYE sabittir, slew ile DÖNMEZ (yalnız
+    // üst yapı/bom döner). Plan çerçevesi nesnelerle aynı: +X (şasi arkası,
+    // slew 0°) = kuzey (heading 0).
+    const heading0 = heading;
+    const rear = Lx * rearFraction;
+    const front = Lx * (1 - rearFraction);
     const oc = [
-      [Lx / 2, Ly / 2],
-      [Lx / 2, -Ly / 2],
-      [-Lx / 2, -Ly / 2],
-      [-Lx / 2, Ly / 2],
+      [rear, Ly / 2],
+      [rear, -Ly / 2],
+      [-front, -Ly / 2],
+      [-front, Ly / 2],
     ].map(([fx, ly]) => {
       const dist = Math.hypot(fx, ly);
-      const heading = (Math.atan2(ly, fx) * 180) / Math.PI + slewAngle;
-      return sph.computeOffset(center, dist, heading);
+      const hdg = (Math.atan2(ly, fx) * 180) / Math.PI + heading0;
+      return sph.computeOffset(center, dist, hdg);
     });
     push(
       new google.maps.Polygon({
@@ -172,7 +200,7 @@ export default function SitePlan({ Lx, Ly, radius, slewAngle, objects, colliding
       new google.maps.Marker({
         map,
         position: center,
-        title: "Vinç merkezi",
+        title: tRef.current("Vinç merkezi"),
         label: { text: "⊕", color: "#ffffff", fontSize: "16px" },
       }),
     );
@@ -229,22 +257,20 @@ export default function SitePlan({ Lx, Ly, radius, slewAngle, objects, colliding
     return (
       <div style={{ padding: 24, maxWidth: 560, margin: "0 auto" }}>
         <div className="card">
-          <h3>🛰 Saha Planı — Google Maps Kurulumu</h3>
+          <h3>🛰 {t("Saha Planı — Google Maps Kurulumu")}</h3>
           <p style={{ fontSize: 13, color: "var(--text-dim)", lineHeight: 1.6 }}>
-            Uydu görüntüsü üzerine vincin çalışma yarıçapını, ayak izini ve çevre
-            nesnelerini yerleştirmek için bir <b>Google Maps JavaScript API</b>{" "}
-            anahtarı gerekir.
+            {t("Uydu görüntüsü üzerine vincin çalışma yarıçapını, ayak izini ve çevre nesnelerini yerleştirmek için bir Google Maps JavaScript API anahtarı gerekir.")}
           </p>
           <ol style={{ fontSize: 12.5, color: "var(--text-dim)", lineHeight: 1.7, paddingLeft: 18 }}>
             <li>
               <a href="https://console.cloud.google.com/google/maps-apis" target="_blank" rel="noreferrer"
-                 style={{ color: "var(--accent)" }}>Google Cloud Console</a>'da bir proje açın.
+                 style={{ color: "var(--accent)" }}>Google Cloud Console</a>{t("'da bir proje açın.")}
             </li>
-            <li>"Maps JavaScript API"yi etkinleştirin ve faturalandırmayı açın.</li>
-            <li>Bir API anahtarı oluşturup aşağıya yapıştırın (tarayıcıda saklanır).</li>
+            <li>{t("\"Maps JavaScript API\"yi etkinleştirin ve faturalandırmayı açın.")}</li>
+            <li>{t("Bir API anahtarı oluşturup aşağıya yapıştırın (tarayıcıda saklanır).")}</li>
           </ol>
           <div className="field" style={{ marginTop: 10 }}>
-            <label>Google Maps API Anahtarı</label>
+            <label>{t("Google Maps API Anahtarı")}</label>
             <input
               type="text"
               value={draft}
@@ -254,11 +280,10 @@ export default function SitePlan({ Lx, Ly, radius, slewAngle, objects, colliding
             />
           </div>
           <button className="btn primary" onClick={() => saveKey(draft)} disabled={!draft.trim()}>
-            Anahtarı Kaydet ve Haritayı Yükle
+            {t("Anahtarı Kaydet ve Haritayı Yükle")}
           </button>
           <div className="disclaimer" style={{ marginTop: 10 }}>
-            Anahtar yalnızca bu tarayıcıda/uygulamada saklanır, sunucuya gönderilmez.
-            Faturalandırma ve kullanım sizin Google hesabınıza tabidir.
+            {t("Anahtar yalnızca bu tarayıcıda/uygulamada saklanır, sunucuya gönderilmez. Faturalandırma ve kullanım sizin Google hesabınıza tabidir.")}
           </div>
         </div>
       </div>
@@ -277,10 +302,10 @@ export default function SitePlan({ Lx, Ly, radius, slewAngle, objects, colliding
             {status === "error" ? (
               <>
                 <div className="error-box" style={{ marginBottom: 8 }}>⚠ {err}</div>
-                <button className="btn ghost" onClick={resetKey}>Anahtarı Değiştir</button>
+                <button className="btn ghost" onClick={resetKey}>{t("Anahtarı Değiştir")}</button>
               </>
             ) : (
-              <div style={{ color: "var(--text-dim)", fontSize: 13 }}>Harita yükleniyor…</div>
+              <div style={{ color: "var(--text-dim)", fontSize: 13 }}>{t("Harita yükleniyor…")}</div>
             )}
           </div>
         </div>
@@ -292,11 +317,15 @@ export default function SitePlan({ Lx, Ly, radius, slewAngle, objects, colliding
           borderRadius: 8, padding: "8px 12px", fontSize: 12, color: "var(--text)",
           fontFamily: "var(--mono)", lineHeight: 1.6, maxWidth: 280,
         }}>
-          <div>📍 Vinç konumunu haritaya tıklayarak ayarlayın</div>
-          <div style={{ color: "var(--blue)" }}>◯ Yarıçap {radius} m · ⬜ Ayak {Lx}×{Ly} m</div>
-          <div style={{ color: "var(--text-dim)" }}>Dönme {slewAngle}° · {objects.length} nesne</div>
+          <div>📍 {t("Vinç konumunu haritaya tıklayarak ayarlayın")}</div>
+          <div style={{ color: "var(--blue)" }}>
+            ◯ {t("Yarıçap")} {lenTxt(radius)} {u.lenU} · ⬜ {t("Ayak")} {lenTxt(Lx)}×{lenTxt(Ly)} {u.lenU}
+          </div>
+          <div style={{ color: "var(--text-dim)" }}>
+            {t("Yön {h}° · Dönme {s}° · {n} nesne", { h: heading, s: slewAngle, n: objects.length })}
+          </div>
           <button className="btn ghost" style={{ marginTop: 6, padding: "4px 8px", fontSize: 11 }} onClick={resetKey}>
-            API Anahtarını Değiştir
+            {t("API Anahtarını Değiştir")}
           </button>
         </div>
       )}

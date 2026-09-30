@@ -3,39 +3,325 @@
   "source": "Sany_crane-brochure_SAC2500E.pdf — Load Chart-T (ana bom, 360° tam ayak açık). Kapasite/ağırlık/ayak değerleri broşürden birebir.",
   "geometry_constants": {
     "cribbing_height": 0.3,
-    "machine_ground_height": 3.1,
-    "boom_offset": 1.8,
+    "machine_ground_height": 3.45,
+    "boom_offset": 2.55,
     "sheave_diameter": 0.6,
     "hook_height": 1.5,
     "sheave_offset": 1.6,
     "boom_thickness": 1.5
   },
-  "geometry_source": "TAHMİNİ — 250t sınıfı AT vinç için makul değerler. Broşür bom-mafsalı geometrisini (offset/makara/kalınlık) vermez; klerens sonuçları yönlendiricidir, üretici geometrisiyle doğrulanmalıdır.",
+  "geometry_source": "boom_offset=2,55 m broşür s.18 ölçü çiziminden (slew merkezi → bom mafsalı). machine_ground_height≈3,45 m çizimden (seyirde ≈3,3 m + ayaklarda kalkma) — YAKLAŞIK. sheave_diameter/sheave_offset/boom_thickness/hook_height TAHMİNİ (broşürde yok); klerens sonuçları yönlendiricidir.",
   "dimensions": {
-    "source": "Sany_crane-brochure_SAC2500E.pdf — Overall Dimensions (s.18) + Technical Specification. Yandan/üstten çizim için gerçek ölçüler.",
-    "carrier_length_m": 16.0,
+    "source": "Sany_crane-brochure_SAC2500E.pdf — Overall Dimensions (s.18): şasi 13,782 m (öne bom başı çıkıntısı 1,985 m → toplam 15,998 m), aks zinciri 2705/2750/1650/2490/1650/2537 mm, slew merkezi arkadan 4,318 m, bom mafsalı slew merkezinin 2,55 m gerisinde, kuyruk R5243.",
+    "carrier_length_m": 13.782,
     "carrier_width_m": 3.0,
     "body_width_m": 2.55,
     "travel_height_m": 3.95,
     "ground_clearance_m": 0.29,
-    "deck_height_m": 2.4,
+    "deck_height_m": 1.96,
     "axle_count": 5,
     "tire_diameter_m": 1.37,
-    "wheelbase_front_m": 1.99,
+    "wheelbase_front_m": 2.705,
     "axle_positions_m": [
-      3.0,
-      5.7,
-      8.45,
-      10.1,
-      12.6
+      2.705,
+      5.455,
+      7.105,
+      9.595,
+      11.245
     ],
-    "tail_radius_m": 5.4,
-    "cab_height_m": 3.6,
-    "boom_pivot_height_m": 3.1,
-    "boom_pivot_x_m": -1.8,
-    "superstructure_deck_height_m": 2.6,
-    "counterweight_height_m": 2.8,
-    "boom_stowed_length_m": 13.9
+    "tail_radius_m": 5.243,
+    "cab_height_m": 2.5,
+    "boom_pivot_height_m": 3.3,
+    "boom_pivot_x_m": -2.55,
+    "superstructure_deck_height_m": 2.1,
+    "counterweight_height_m": 2.6,
+    "boom_stowed_length_m": 13.9,
+    "slew_center_from_front_m": 9.464,
+    "boom_sections": 7,
+    "boom_base_depth_m": 1.4,
+    "boom_base_width_m": 1.1,
+    "counterweight_max_t": 80,
+    "counterweight_depth_m": 2.4,
+    "counterweight_width_m": 3,
+    "color": "#f2b705",
+    "estimated_fields": [
+      "boom_pivot_height_m (çizimden ≈3,3 m)",
+      "boom_base_depth_m",
+      "boom_base_width_m",
+      "counterweight_width_m",
+      "counterweight_height_m (80 t)"
+    ],
+    "outrigger_rear_fraction": 0.38,
+    "outrigger_rear_fraction_source": "çizim s.18: arka ayaklar 3,234/3,600 m, ön 5,765/5,407 m (ortalama arka/toplam = 0,38)"
+  },
+  "appearance": {
+    "source": "Sany_crane-brochure_SAC2500E.pdf s.18 Overall Dimensions — profiller çizimden (≈50 px/m) çıkarıldı; renkler broşür görselinden (kırmızı bom, sarı gövde, siyah şasi).",
+    "colors": {
+      "body": "#f5b400",
+      "chassis": "#1d1f22",
+      "glass": "#2c3e50",
+      "boom": "#d42a20",
+      "cw": "#f0b000",
+      "dark": "#2a2d31",
+      "stripe": "#e0302a"
+    },
+    "carrier": [
+      {
+        "pts": [
+          [
+            1.8,
+            0.7
+          ],
+          [
+            13.5,
+            0.7
+          ],
+          [
+            13.76,
+            1.1
+          ],
+          [
+            13.76,
+            1.8
+          ],
+          [
+            1.8,
+            1.8
+          ]
+        ],
+        "color": "chassis"
+      },
+      {
+        "pts": [
+          [
+            1.8,
+            1.8
+          ],
+          [
+            13.5,
+            1.8
+          ],
+          [
+            13.5,
+            1.96
+          ],
+          [
+            1.8,
+            1.96
+          ]
+        ],
+        "color": "stripe",
+        "width": 0.04,
+        "side": "left"
+      },
+      {
+        "pts": [
+          [
+            1.8,
+            1.8
+          ],
+          [
+            13.5,
+            1.8
+          ],
+          [
+            13.5,
+            1.96
+          ],
+          [
+            1.8,
+            1.96
+          ]
+        ],
+        "color": "stripe",
+        "width": 0.04,
+        "side": "right"
+      },
+      {
+        "pts": [
+          [
+            1.8,
+            1.4
+          ],
+          [
+            4.5,
+            1.4
+          ],
+          [
+            4.6,
+            1.8
+          ],
+          [
+            4.4,
+            2.16
+          ],
+          [
+            1.8,
+            2.5
+          ]
+        ],
+        "color": "body"
+      },
+      {
+        "pts": [
+          [
+            0.04,
+            0.4
+          ],
+          [
+            1.8,
+            0.4
+          ],
+          [
+            1.8,
+            2.5
+          ],
+          [
+            0.44,
+            2.5
+          ],
+          [
+            0.1,
+            1.4
+          ]
+        ],
+        "color": "body",
+        "width": 1.5,
+        "side": "left"
+      },
+      {
+        "pts": [
+          [
+            0.3,
+            1.56
+          ],
+          [
+            1.6,
+            1.4
+          ],
+          [
+            1.6,
+            2.3
+          ],
+          [
+            0.44,
+            2.3
+          ]
+        ],
+        "color": "glass",
+        "width": 1.55,
+        "side": "left"
+      }
+    ],
+    "superstructure": [
+      {
+        "pts": [
+          [
+            0.26,
+            2.1
+          ],
+          [
+            0.26,
+            3.8
+          ],
+          [
+            -3.84,
+            3.8
+          ],
+          [
+            -4.04,
+            3.2
+          ],
+          [
+            -4.04,
+            2.1
+          ]
+        ],
+        "color": "body"
+      },
+      {
+        "pts": [
+          [
+            -4.04,
+            3.2
+          ],
+          [
+            -5.0,
+            3.2
+          ],
+          [
+            -5.0,
+            3.96
+          ],
+          [
+            -4.04,
+            3.96
+          ]
+        ],
+        "color": "body",
+        "width": 1.8
+      },
+      {
+        "pts": [
+          [
+            2.16,
+            2.1
+          ],
+          [
+            1.86,
+            3.6
+          ],
+          [
+            1.62,
+            3.96
+          ],
+          [
+            0.26,
+            3.96
+          ],
+          [
+            0.26,
+            2.1
+          ]
+        ],
+        "color": "body",
+        "width": 1.05,
+        "side": "left"
+      },
+      {
+        "pts": [
+          [
+            2.02,
+            2.6
+          ],
+          [
+            0.42,
+            2.6
+          ],
+          [
+            0.42,
+            3.8
+          ],
+          [
+            1.7,
+            3.8
+          ],
+          [
+            1.9,
+            3.36
+          ]
+        ],
+        "color": "glass",
+        "width": 1.1,
+        "side": "left"
+      }
+    ],
+    "counterweight_box": {
+      "u0": -5.2,
+      "u1": -2.8,
+      "y0": 2.16,
+      "y1": 4.76
+    }
   },
   "self_weight": 60.0,
   "boom_weight_t": 19,

@@ -1,5 +1,6 @@
 import { useState } from "react";
 import type { WorkStep } from "./state";
+import { useI18n } from "./i18n";
 
 /**
  * Çalışma adımları şeridi (Liebherr Crane Planner 2.0 "working steps" benzeri).
@@ -38,6 +39,7 @@ function StepChip({
   onRename: (id: string, name: string) => void;
 }) {
   // İsim düzenleme: çift tıkla input'a dön; blur veya Enter'da kaydet, Escape'te iptal.
+  const { t } = useI18n();
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(step.name);
 
@@ -48,9 +50,9 @@ function StepChip({
   // Çarpışma rozeti: "collision" → kırmızı ●, "warning" → amber ●, "ok" → yok.
   const collisionDot =
     worst === "collision"
-      ? { color: "var(--red)", title: "Çarpışma" }
+      ? { color: "var(--red)", title: t("Çarpışma") }
       : worst === "warning"
-        ? { color: "var(--accent)", title: "Uyarı: temas riski" }
+        ? { color: "var(--accent)", title: t("Uyarı: temas riski") }
         : null;
 
   function commit() {
@@ -72,7 +74,7 @@ function StepChip({
   return (
     <div
       onClick={() => onSelect(step.id)}
-      title="Adımı yükle"
+      title={t("Adımı yükle")}
       style={{
         position: "relative",
         flex: "0 0 auto",
@@ -92,8 +94,8 @@ function StepChip({
           e.stopPropagation();
           onDelete(step.id);
         }}
-        title="Adımı sil"
-        aria-label="Adımı sil"
+        title={t("Adımı sil")}
+        aria-label={t("Adımı sil")}
         style={{
           position: "absolute",
           top: 4,
@@ -158,7 +160,7 @@ function StepChip({
               setDraft(step.name);
               setEditing(true);
             }}
-            title="İsmi düzenlemek için çift tıkla"
+            title={t("İsmi düzenlemek için çift tıkla")}
             style={{
               fontSize: 12,
               fontWeight: 600,
@@ -184,7 +186,7 @@ function StepChip({
             color: pctColor,
           }}
         >
-          {step.summary.utilization_pct.toFixed(0)}%
+          {Number.isFinite(step.summary.utilization_pct) ? `${step.summary.utilization_pct.toFixed(0)}%` : "—"}
         </span>
         {collisionDot && (
           <span
@@ -209,7 +211,7 @@ function StepChip({
           textOverflow: "ellipsis",
         }}
       >
-        {step.summary.status}
+        {t(step.summary.status)}
       </div>
     </div>
   );
@@ -224,6 +226,7 @@ export default function StepsBar({
   onRename,
   onReport,
 }: StepsBarProps): JSX.Element {
+  const { t } = useI18n();
   const hasSteps = steps.length > 0;
 
   return (
@@ -234,7 +237,7 @@ export default function StepsBar({
           className="section-title"
           style={{ margin: 0, display: "flex", alignItems: "center", gap: 8, flex: "0 0 auto" }}
         >
-          <span>Çalışma Adımları</span>
+          <span>{t("Çalışma Adımları")}</span>
           <span
             className="pill"
             style={{ fontFamily: "var(--mono)", fontSize: 10, padding: "1px 7px" }}
@@ -249,7 +252,7 @@ export default function StepsBar({
           onClick={onAdd}
           style={{ width: "auto", padding: "6px 12px", fontSize: 12, marginTop: 0, flex: "0 0 auto" }}
         >
-          ➕ Adımı Kaydet
+          ➕ {t("Adımı Kaydet")}
         </button>
 
         {/* Orta: yatay kaydırılabilir adım şeridi */}
@@ -284,7 +287,7 @@ export default function StepsBar({
                 fontStyle: "italic",
               }}
             >
-              Henüz adım yok. Konfigürasyonu ayarlayıp "Adımı Kaydet"e basın.
+              {t("Henüz adım yok. Konfigürasyonu ayarlayıp \"Adımı Kaydet\"e basın.")}
             </div>
           )}
         </div>
@@ -294,7 +297,7 @@ export default function StepsBar({
           className="btn primary"
           onClick={onReport}
           disabled={!hasSteps}
-          title={hasSteps ? "Tüm adımlardan çok-adımlı PDF üret" : "Önce en az bir adım kaydedin"}
+          title={hasSteps ? t("Tüm adımlardan çok-adımlı PDF üret") : t("Önce en az bir adım kaydedin")}
           style={{
             width: "auto",
             padding: "6px 12px",
@@ -305,7 +308,7 @@ export default function StepsBar({
             cursor: hasSteps ? "pointer" : "not-allowed",
           }}
         >
-          📄 Çok Adımlı PDF
+          📄 {t("Çok Adımlı PDF")}
         </button>
       </div>
     </div>

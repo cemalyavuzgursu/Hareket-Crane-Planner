@@ -1,6 +1,9 @@
 import type { CraneModel, LiftConfig } from "../engine/types";
 import { getJibCapacityCurve } from "../engine/capacity";
 import type { UIState } from "./state";
+import { useI18n, type TFn } from "./i18n";
+import { useUnits, type Units } from "./units";
+import UnitInput from "./UnitInput";
 
 interface Props {
   cranes: CraneModel[];
@@ -15,17 +18,21 @@ interface Props {
  * tablosuna sahip iki ayrı bom varyantıdır (veri modelinde anahtar aynı
  * kalmalı, yalnızca kullanıcıya gösterilen etiket ayrıştırılır).
  */
-function boomLabel(b: number, allBooms: number[]): string {
+function boomLabel(b: number, allBooms: number[], u: Units, t: TFn): string {
+  // Metrik: "29.4 m"; imperial: "96.5 ft" (değer SI kalır, yalnızca etiket).
+  const show = (m: number) => (u.imperial ? `${u.len(m).toFixed(1)} ft` : `${m} m`);
   const rounded = Math.round(b * 10) / 10;
   const group = allBooms
     .filter((x) => Math.abs(Math.round(x * 10) / 10 - rounded) < 1e-9)
     .sort((a, c) => a - c);
-  if (group.length <= 1) return `${b} m`;
+  if (group.length <= 1) return show(b);
   const idx = group.findIndex((x) => Math.abs(x - b) < 1e-9);
-  return `${rounded} m (varyant ${idx + 1})`;
+  return `${show(rounded)} (${t("varyant {n}", { n: idx + 1 })})`;
 }
 
 export default function ConfigSidebar({ cranes, crane, state, set }: Props) {
+  const { t } = useI18n();
+  const u = useUnits();
   const jibMeta = crane.jib_configs;
   const activeJib = jibMeta?.configs.find((c) => c.key === state.lift_config);
   const inJib = !!activeJib;
@@ -81,7 +88,7 @@ export default function ConfigSidebar({ cranes, crane, state, set }: Props) {
   return (
     <div className="cfg-fields">
       <div className="field">
-        <label>Vinç Modeli</label>
+        <label>{t("Vinç Modeli")}</label>
         <select
           value={state.craneModel}
           onChange={(e) => set({ craneModel: e.target.value })}
@@ -96,12 +103,12 @@ export default function ConfigSidebar({ cranes, crane, state, set }: Props) {
 
       {jibMeta && (
         <div className="field">
-          <label>Kaldırma Konfigürasyonu</label>
+          <label>{t("Kaldırma Konfigürasyonu")}</label>
           <select
             value={state.lift_config}
             onChange={(e) => changeConfig(e.target.value as LiftConfig)}
           >
-            <option value="T">Ana Bom (T) — jibsiz</option>
+            <option value="T">{t("Ana Bom (T) — jibsiz")}</option>
             {jibMeta.configs.map((c) => (
               <option key={c.key} value={c.key}>
                 {c.label}
@@ -115,10 +122,10 @@ export default function ConfigSidebar({ cranes, crane, state, set }: Props) {
       )}
 
       <div className="field">
-        <label>Denge Ağırlığı (Counterweight)</label>
+        <label>{t("Denge Ağırlığı (Counterweight)")}</label>
         {inJib ? (
           <div className="toggle-group">
-            <div className="toggle active">{jibMeta!.counterweight_required}t (jib gereği)</div>
+            <div className="toggle active">{u.imperial ? u.fmtMass(jibMeta!.counterweight_required) : `${jibMeta!.counterweight_required}t`} ({t("jib gereği")})</div>
           </div>
         ) : (
           <div className="toggle-group">
@@ -128,7 +135,7 @@ export default function ConfigSidebar({ cranes, crane, state, set }: Props) {
                 className={`toggle ${state.counterweight === cw ? "active" : ""}`}
                 onClick={() => set({ counterweight: cw })}
               >
-                {cw}t
+                {u.imperial ? u.fmtMass(cw) : `${cw}t`}
               </div>
             ))}
           </div>
@@ -136,7 +143,7 @@ export default function ConfigSidebar({ cranes, crane, state, set }: Props) {
       </div>
 
       <div className="field">
-        <label>Bom Uzunluğu (m)</label>
+        <label>{t("Bom Uzunluğu")} ({u.lenU})</label>
         <select
           value={state.boom_length}
           onChange={(e) => {
@@ -153,7 +160,7 @@ export default function ConfigSidebar({ cranes, crane, state, set }: Props) {
         >
           {boomOptions.map((b) => (
             <option key={b} value={b}>
-              {boomLabel(b, boomOptions)}
+              {boomLabel(b, boomOptions, u, t)}
             </option>
           ))}
         </select>
@@ -162,7 +169,7 @@ export default function ConfigSidebar({ cranes, crane, state, set }: Props) {
       {activeJib && (
         <>
           <div className="field">
-            <label>Jib Uzunluğu (m)</label>
+            <label>{t("Jib Uzunluğu")} ({u.lenU})</label>
             <select
               value={state.jib_length}
               onChange={(e) => {
@@ -175,14 +182,14 @@ export default function ConfigSidebar({ cranes, crane, state, set }: Props) {
             >
               {activeJib.jib_lengths.map((j) => (
                 <option key={j} value={j}>
-                  {j} m
+                  {u.imperial ? `${u.len(j).toFixed(1)} ft` : `${j} m`}
                 </option>
               ))}
             </select>
           </div>
 
           <div className="field">
-            <label>Jib Ofset Açısı (°)</label>
+            <label>{t("Jib Ofset Açısı")} (°)</label>
             <div className="toggle-group">
               {activeJib.offsets.map((o) => (
                 <div
@@ -202,18 +209,18 @@ export default function ConfigSidebar({ cranes, crane, state, set }: Props) {
           </div>
 
           <div className="field">
-            <label>Çalışma Yarıçapı (Radius) (m)</label>
-            <input
-              type="number"
+            <label>{t("Çalışma Yarıçapı (Radius)")} ({u.lenU})</label>
+            <UnitInput
+              kind="len"
               value={state.radius}
               step={0.5}
-              onChange={(e) => set({ radius: parseFloat(e.target.value) || 0 })}
+              onChange={(v) => set({ radius: v || 0 })}
             />
             {(() => {
               const rng = jibRange(state.lift_config, state.jib_length, state.boom_length, state.jib_offset);
               return rng ? (
                 <div className="disclaimer" style={{ marginTop: 4 }}>
-                  Geçerli radüs aralığı: {rng[0]}–{rng[1]} m
+                  {t("Geçerli radüs aralığı")}: {u.imperial ? `${u.len(rng[0]).toFixed(1)}–${u.len(rng[1]).toFixed(1)} ft` : `${rng[0]}–${rng[1]} m`}
                 </div>
               ) : null;
             })()}
@@ -222,7 +229,7 @@ export default function ConfigSidebar({ cranes, crane, state, set }: Props) {
       )}
 
       <div className="field">
-        <label>Ayak Açıklığı (Outrigger)</label>
+        <label>{t("Ayak Açıklığı (Outrigger)")}</label>
         <select
           value={state.outrigger_config}
           onChange={(e) => set({ outrigger_config: e.target.value })}
@@ -238,7 +245,7 @@ export default function ConfigSidebar({ cranes, crane, state, set }: Props) {
       {!inJib && (
         <div className="field">
           <label>
-            Kapasite Modu {(crane.capacity_pct_options ?? [75, 85]).length === 1 ? "" : "(%)"}
+            {t("Kapasite Modu")} {(crane.capacity_pct_options ?? [75, 85]).length === 1 ? "" : "(%)"}
           </label>
           <div className="toggle-group">
             {(crane.capacity_pct_options ?? [75, 85]).map((p) => (
@@ -247,7 +254,7 @@ export default function ConfigSidebar({ cranes, crane, state, set }: Props) {
                 className={`toggle ${state.capacity_pct === p ? "active" : ""}`}
                 onClick={() => set({ capacity_pct: p })}
               >
-                {p === 100 ? "360° Tam Tablo" : `%${p}`}
+                {p === 100 ? t("360° Tam Tablo") : `%${p}`}
               </div>
             ))}
           </div>
@@ -255,7 +262,7 @@ export default function ConfigSidebar({ cranes, crane, state, set }: Props) {
       )}
 
       <div className="field">
-        <label>Dönme Açısı (°) — 0 = arka</label>
+        <label>{t("Dönme Açısı (°) — 0 = arka")}</label>
         <input
           type="number"
           value={state.slew_angle}
@@ -265,15 +272,27 @@ export default function ConfigSidebar({ cranes, crane, state, set }: Props) {
         />
       </div>
 
+      <div className="field">
+        <label>{t("Vinç Yönü (°) — şasi arkasının sahadaki açısı")}</label>
+        <input
+          type="number"
+          value={state.crane_heading ?? 0}
+          min={-360}
+          max={360}
+          step={5}
+          onChange={(e) => set({ crane_heading: parseFloat(e.target.value) || 0 })}
+        />
+      </div>
+
       <div className="disclaimer">
-        Veri kaynağı: {crane.source ?? "—"}.<br />
-        self_weight: {crane.self_weight ?? "tanımsız"} t
-        {crane.datasheet_substitute ? " (datasheet ikamesi)" : ""}
+        {t("Veri kaynağı")}: {crane.source ?? "—"}.<br />
+        self_weight: {crane.self_weight == null ? t("tanımsız") + " t" : u.imperial ? u.fmtMass(crane.self_weight) : `${crane.self_weight} t`}
+        {crane.datasheet_substitute ? ` (${t("datasheet ikamesi")})` : ""}
         {crane.geometry_source ? (
           <>
             <br />
             <span style={{ color: "var(--warn, #d97706)" }}>
-              ⚠ Klerens geometrisi: {crane.geometry_source}
+              ⚠ {t("Klerens geometrisi")}: {crane.geometry_source}
             </span>
           </>
         ) : null}

@@ -49,6 +49,21 @@ async function syncData() {
     await copyFile(join(srcData, f), join(outData, f));
   }
 
+  // Engine'in doğrudan import ettiği TS veri modülleri (ör. ../data/hookBlocks).
+  // Yalnız engine'in referans verdiği dosyalar kopyalanır (UI'ya özgü cranes.ts/customCranes.ts değil).
+  const engineFiles = (await readdir(srcEngine)).filter((f) => f.endsWith(".ts"));
+  const dataModules = new Set();
+  for (const f of engineFiles) {
+    const code = await readFile(join(srcEngine, f), "utf8");
+    for (const m of code.matchAll(/from\s+["']\.\.\/data\/([\w-]+)(?:\.js|\.ts)?["']/g)) {
+      dataModules.add(m[1]);
+    }
+  }
+  for (const name of dataModules) {
+    const raw = await readFile(join(srcData, name + ".ts"), "utf8");
+    await writeFile(join(outData, name + ".ts"), HEADER + stripJsExtensions(raw), "utf8");
+  }
+
   // Vinç kayıt defteri (uzantısız importlarla — Metro uyumlu).
   const imports = files
     .map((f, i) => `import c${i} from "./data/${f}";`)

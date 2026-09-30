@@ -5,6 +5,7 @@
  */
 import { useEffect, useState } from "react";
 import type { ProjectMeta } from "./state";
+import { useI18n } from "./i18n";
 
 interface Props {
   meta: ProjectMeta;
@@ -23,6 +24,7 @@ const FIELDS: Array<{ key: keyof ProjectMeta; label: string; placeholder?: strin
 ];
 
 export default function ProjectMetaDialog({ meta, onSave, onClose }: Props) {
+  const { t } = useI18n();
   const [draft, setDraft] = useState<ProjectMeta>(meta);
   useEffect(() => setDraft(meta), [meta]);
 
@@ -37,27 +39,26 @@ export default function ProjectMetaDialog({ meta, onSave, onClose }: Props) {
   return (
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal-card card" onClick={(e) => e.stopPropagation()}>
-        <h3>📋 Proje Bilgileri</h3>
+        <h3>📋 {t("Proje Bilgileri")}</h3>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
           {FIELDS.map((f) => (
             <div className="field" key={f.key} style={f.key === "approvedBy" ? { gridColumn: "1 / -1" } : undefined}>
-              <label>{f.label}</label>
+              <label>{t(f.label)}</label>
               <input
                 type="text"
                 value={draft[f.key]}
-                placeholder={f.placeholder}
+                placeholder={f.placeholder ? t(f.placeholder) : undefined}
                 onChange={(e) => setDraft((d) => ({ ...d, [f.key]: e.target.value }))}
               />
             </div>
           ))}
         </div>
         <div className="disclaimer">
-          Bu bilgiler PDF raporunun başlığında ve son sayfadaki imza bloklarında görünür;
-          hesaba dahil edilmez.
+          {t("Bu bilgiler PDF raporunun başlığında ve son sayfadaki imza bloklarında görünür; hesaba dahil edilmez.")}
         </div>
         <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
           <button className="btn ghost" style={{ flex: 1 }} onClick={onClose} type="button">
-            Vazgeç
+            {t("Vazgeç")}
           </button>
           <button
             className="btn primary"
@@ -68,7 +69,7 @@ export default function ProjectMetaDialog({ meta, onSave, onClose }: Props) {
               onClose();
             }}
           >
-            Kaydet
+            {t("Kaydet")}
           </button>
         </div>
       </div>

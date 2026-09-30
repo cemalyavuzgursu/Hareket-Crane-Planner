@@ -10,6 +10,34 @@ Crangle tarzı: hızlı, dokunmatik dostu, sahada gerekli olan üç şey:
 > Masaüstü ve web uygulamalarına dokunulmaz. Hesap çekirdeği (`../src/engine`)
 > **tek kaynaktır** ve buraya kopyalanarak paylaşılır — hesaplar birebir aynıdır.
 
+## Masaüstü ↔ mobil proje paylaşımı
+
+Ofiste masaüstünde hazırlanan plan sahada telefondan açılabilir:
+
+1. **Masaüstü:** Dosya → **Projeyi Kaydet (.json)**
+2. Dosyayı telefona gönder: e-posta, WhatsApp, Google Drive / OneDrive vb.
+   (telefonda "Dosyalara kaydet" / "İndirilenler").
+3. **Mobil:** başlıktaki **📂 Proje Aç** → dosyayı seç.
+4. Proje çalışma adımları içeriyorsa hangi adımın (ya da kaydedildiği andaki
+   güncel planın) yükleneceği sorulur.
+
+Yüklenen alanlar: vinç modeli, yük / kanca / sapan ağırlıkları (Rigging Editor
+listesi doluysa masaüstündeki gibi **toplam** ağırlık + yükseklik), yük ölçüleri,
+engel (yükseklik, uzaklık, genişlik), bom, radius, denge ağırlığı, kapasite %,
+ayak açıklığı, dönme açısı, jib konfigürasyonu (uzunluk/ofset).
+
+Mobilde **olmayan** masaüstü özellikleri düşürülür ve başlık altındaki kapatılabilir
+bilgi şeridinde uyarı olarak listelenir: çevre nesneleri (bina/enerji hattı →
+çevre çarpışması), tandem kaldırma, al–bırak güzergâhı, vincin saha konumu/yönü,
+yük CoG kaçıklığı, zemin eğimi, zemin basıncı/takoz kontrolü, aparat ayrıntıları.
+Projedeki vinç mobilde yoksa (ör. masaüstünde tanımlanan **özel vinç**) dosya
+açılmaz; vince uymayan bom/denge/%/ayak değerleri en yakın geçerli seçenekle
+değiştirilir ve bildirilir. Masaüstünden daha yeni bir şema sürümüyle kaydedilmiş
+dosyalar reddedilir (mobil uygulamayı güncelleyin).
+
+İçe aktarma mantığı `src/projectImport.ts` içindedir (saf fonksiyon);
+`npm run check:import` örnek projelerle doğrular.
+
 ## Mimari
 
 ```
@@ -17,6 +45,7 @@ mobile/
 ├─ App.tsx                 Sekmeli arayüz (Girdiler · 2D · CoG · Çarpışma)
 ├─ src/
 │  ├─ state.ts             Girdi durumu + varsayılanlar
+│  ├─ projectImport.ts     Masaüstü proje (.json) → mobil durum dönüşümü
 │  ├─ theme.ts             Renk paleti (koyu CAD teması)
 │  ├─ components/          RN-SVG çizimler + dokunmatik kontroller
 │  │  ├─ SideView2D.tsx
@@ -65,4 +94,5 @@ veya App Store gerekir.
 ## Doğrulama
 
 - `npm run typecheck` — TypeScript (tsc) temiz
+- `npm run check:import` — masaüstü proje içe aktarma öz-kontrolü
 - `npm run export` — Metro production bundle'ı üretir (import çözümlemesi doğrulanır)

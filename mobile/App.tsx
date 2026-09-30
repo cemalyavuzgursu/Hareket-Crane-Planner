@@ -3,13 +3,16 @@
 import React from "react";
 import {
   View, Text, ScrollView, Pressable, StyleSheet, useWindowDimensions, StatusBar as RNStatusBar,
+  Modal, Platform, ActivityIndicator,
 } from "react-native";
+import * as DocumentPicker from "expo-document-picker";
+import * as FileSystem from "expo-file-system";
 import { StatusBar } from "expo-status-bar";
 import { SafeAreaView } from "react-native";
 
 import { CRANES } from "./src/shared/cranes";
 import { computeLiftFull, getJibCapacityCurve } from "./src/shared/engine";
-import { cornerLoadsAtAngle, parseOutriggerConfig } from "./src/shared/engine/outrigger";
+import { cornerLoadsAtAngle, parseOutriggerConfig, type OutriggerResult } from "./src/shared/engine/outrigger";
 import type { CapacityResult, ReevingResult } from "./src/shared/engine/capacity";
 import type { CraneModel, LiftConfig } from "./src/shared/engine/types";
 
@@ -18,6 +21,15 @@ import { C, mono, severityColor } from "./src/theme";
 import { Stepper, Segmented, Section } from "./src/components/Controls";
 import SideView2D from "./src/components/SideView2D";
 import GroundForceDiagram from "./src/components/GroundForceDiagram";
+import { parseDesktopProject, importParsedProject, type ParsedDesktopProject } from "./src/projectImport";
+
+/** Proje içe aktarma bildirimi (başlık altındaki kapatılabilir banner). */
+type ImportNotice =
+  | { kind: "ok"; projectName: string; warnings: string[] }
+  | { kind: "error"; message: string };
+
+/** Makul üst sınır — masaüstü proje dosyaları tipik olarak birkaç yüz KB'dir. */
+const MAX_PROJECT_BYTES = 20 * 1024 * 1024;
 
 type Tab = "girdi" | "2d" | "cog" | "carpisma";
 
@@ -47,6 +59,61 @@ export default function App() {
     setState((p) => reconcileForCrane(p, c));
 
   const isJibMode = state.lift_config !== "T";
+
+  // --- Masaüstü projesi açma ---
+  const [notice, setNotice] = React.useState<ImportNotice | null>(null);
+  const [pending, setPending] = React.useState<ParsedDesktopProject | null>(null);
+  const [busy, setBusy] = React.useState(false);
+
+  const loadFromProject = (project: ParsedDesktopProject, stepIndex: number | null) => {
+    setPending(null);
+    try {
+      const r = importParsedProject(project, CRANES, stepIndex);
+      setState(r.state);
+      setNotice({ kind: "ok", projectName: r.projectName, warnings: r.warnings });
+      setTab("girdi");
+    } catch (e) {
+      setNotice({ kind: "error", message: e instanceof Error ? e.message : String(e) });
+    }
+  };
+
+  const openProject = async () => {
+    if (busy) return;
+    setBusy(true);
+    try {
+      // Paylaşım uygulamaları (WhatsApp, e-posta, Drive) .json dosyasını farklı MIME ile
+      // kaydedebilir → yalnız application/json'a kısıtlamak dosyayı gizleyebilir.
+      const res = await DocumentPicker.getDocumentAsync({
+        type: ["application/json", "text/json", "text/plain", "application/octet-stream"],
+        copyToCacheDirectory: true,
+        multiple: false,
+      });
+      if (res.canceled || !res.assets?.length) return;
+      const asset = res.assets[0];
+      if (asset.size != null && asset.size > MAX_PROJECT_BYTES) {
+        setNotice({ kind: "error", message: "Dosya çok büyük — bir proje dosyası (.json) seçin." });
+        return;
+      }
+      const text =
+        Platform.OS === "web" && asset.file
+          ? await asset.file.text()
+          : await FileSystem.readAsStringAsync(asset.uri, { encoding: FileSystem.EncodingType.UTF8 });
+      const parsed = parseDesktopProject(text, asset.name);
+      if (!parsed.ok) {
+        setNotice({ kind: "error", message: parsed.error });
+        return;
+      }
+      if (parsed.project.steps.length > 0) {
+        setPending(parsed.project); // adım seçimi modalı
+      } else {
+        loadFromProject(parsed.project, null);
+      }
+    } catch (e) {
+      setNotice({ kind: "error", message: "Dosya okunamadı: " + (e instanceof Error ? e.message : String(e)) });
+    } finally {
+      setBusy(false);
+    }
+  };
 
   // --- Hesap (hata olursa yakala) ---
   const calc = React.useMemo(() => {
@@ -81,6 +148,16 @@ export default function App() {
         <View style={s.headerTop}>
           <Text style={s.brand}>HAREKET</Text>
           <Text style={s.brandSub}>Crane Planner</Text>
+          <View style={{ flex: 1 }} />
+          <Pressable
+            onPress={openProject}
+            disabled={busy}
+            style={({ pressed }) => [s.openBtn, pressed && { opacity: 0.7 }]}
+            accessibilityRole="button"
+            accessibilityLabel="Masaüstü projesi aç"
+          >
+            {busy ? <ActivityIndicator size="small" color={C.accent} /> : <Text style={s.openBtnText}>📂 Proje Aç</Text>}
+          </Pressable>
         </View>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingVertical: 2 }}>
           {CRANES.map((c) => {
@@ -93,6 +170,14 @@ export default function App() {
           })}
         </ScrollView>
       </View>
+
+      {notice && <ImportBanner notice={notice} onClose={() => setNotice(null)} />}
+
+      <StepPickerModal
+        project={pending}
+        onPick={(i) => pending && loadFromProject(pending, i)}
+        onCancel={() => setPending(null)}
+      />
 
       {/* Durum banner'ı */}
       <StatusBanner
@@ -140,7 +225,7 @@ export default function App() {
           </ScrollView>
         )}
         {tab === "cog" && (
-          <CogTab crane={crane} state={state} width={width} outriggerError={result?.outrigger_error} totalLoad={cap?.total_load ?? 0} />
+          <CogTab crane={crane} state={state} width={width} outriggerError={result?.outrigger_error} totalLoad={cap?.total_load ?? 0} outrigger={result?.outrigger ?? null} />
         )}
         {tab === "carpisma" && (
           <CollisionTab
@@ -226,6 +311,88 @@ function StatusBanner(props: {
         <Text style={s.pctSub}>kullanım</Text>
       </View>
     </View>
+  );
+}
+
+/** Proje açma sonucu: proje adı + düşürülen masaüstü özellikleri (kapatılabilir). */
+function ImportBanner(props: { notice: ImportNotice; onClose: () => void }) {
+  const { notice, onClose } = props;
+  const [expanded, setExpanded] = React.useState(false);
+  const isErr = notice.kind === "error";
+  const col = isErr ? C.red : C.accent;
+  const warnings = notice.kind === "ok" ? notice.warnings : [];
+  const shown = expanded ? warnings : warnings.slice(0, 2);
+  return (
+    <View style={[s.importBanner, { borderColor: col, backgroundColor: isErr ? "rgba(255,90,77,0.12)" : "rgba(255,186,32,0.08)" }]}>
+      <View style={{ flex: 1 }}>
+        <Text style={{ color: col, fontSize: 13.5, fontWeight: "800" }} numberOfLines={2}>
+          {notice.kind === "error" ? "Proje açılamadı" : `📂 ${notice.projectName}`}
+        </Text>
+        {notice.kind === "error" ? (
+          <Text style={s.importLine}>{notice.message}</Text>
+        ) : warnings.length === 0 ? (
+          <Text style={s.importLine}>Masaüstü projesi yüklendi.</Text>
+        ) : (
+          <>
+            {shown.map((w, i) => (
+              <Text key={i} style={s.importLine}>• {w}</Text>
+            ))}
+            {warnings.length > 2 && (
+              <Pressable onPress={() => setExpanded((x) => !x)} hitSlop={8}>
+                <Text style={[s.importLine, { color: C.accent, fontWeight: "700" }]}>
+                  {expanded ? "Daha az göster" : `+${warnings.length - 2} uyarı daha`}
+                </Text>
+              </Pressable>
+            )}
+          </>
+        )}
+      </View>
+      <Pressable onPress={onClose} hitSlop={12} accessibilityLabel="Kapat" style={s.importClose}>
+        <Text style={{ color: C.textDim, fontSize: 18, fontWeight: "800" }}>✕</Text>
+      </Pressable>
+    </View>
+  );
+}
+
+/** Proje çalışma adımları içeriyorsa hangi planın yükleneceğini seçtirir. */
+function StepPickerModal(props: {
+  project: ParsedDesktopProject | null;
+  onPick: (stepIndex: number | null) => void;
+  onCancel: () => void;
+}) {
+  const { project, onPick, onCancel } = props;
+  return (
+    <Modal visible={!!project} transparent animationType="fade" onRequestClose={onCancel}>
+      <View style={s.modalBackdrop}>
+        <View style={s.modalCard}>
+          <Text style={{ color: C.text, fontSize: 17, fontWeight: "800" }} numberOfLines={2}>
+            {project?.projectName}
+          </Text>
+          <Text style={{ color: C.textDim, fontSize: 13, marginTop: 4, marginBottom: 10 }}>
+            Bu projede {project?.steps.length ?? 0} çalışma adımı var. Hangisini yükleyelim?
+          </Text>
+          <ScrollView style={{ maxHeight: 360 }}>
+            <Pressable onPress={() => onPick(null)} style={({ pressed }) => [s.stepItem, pressed && { opacity: 0.7 }]}>
+              <Text style={s.stepItemText}>Güncel plan (kaydedildiği hâli)</Text>
+              <Text style={s.stepItemSub}>{String(project?.current.craneModel ?? "")}</Text>
+            </Pressable>
+            {project?.steps.map((st, i) => (
+              <Pressable key={i} onPress={() => onPick(i)} style={({ pressed }) => [s.stepItem, pressed && { opacity: 0.7 }]}>
+                <Text style={s.stepItemText}>{i + 1}. {st.name}</Text>
+                <Text style={s.stepItemSub}>
+                  {String(st.config.craneModel ?? "")}
+                  {typeof st.config.radius === "number" ? ` · R ${st.config.radius} m` : ""}
+                  {typeof st.config.load_weight === "number" ? ` · ${st.config.load_weight} t` : ""}
+                </Text>
+              </Pressable>
+            ))}
+          </ScrollView>
+          <Pressable onPress={onCancel} style={s.modalCancel}>
+            <Text style={{ color: C.textDim, fontSize: 14, fontWeight: "700" }}>Vazgeç</Text>
+          </Pressable>
+        </View>
+      </View>
+    </Modal>
   );
 }
 
@@ -412,13 +579,23 @@ function CogTab(props: {
   width: number;
   outriggerError?: string;
   totalLoad: number;
+  /** Motorun tam ayak sonucu (bom ağırlığı, CW yarıçapı, asimetrik ayak dahil) — masaüstüyle aynı. */
+  outrigger: OutriggerResult | null;
 }) {
-  const { crane, state, width, outriggerError, totalLoad } = props;
+  const { crane, state, width, outriggerError, totalLoad, outrigger } = props;
   const selfW = crane.self_weight;
 
   const data = React.useMemo(() => {
     if (selfW == null) return null;
     try {
+      if (outrigger && outrigger.per_angle.length > 0) {
+        const { Lx, Ly } = parseOutriggerConfig(state.outrigger_config);
+        const target = ((state.slew_angle % 360) + 360) % 360;
+        const at = outrigger.per_angle.reduce((b, a) =>
+          Math.abs(a.slew_angle - target) < Math.abs(b.slew_angle - target) ? a : b,
+        );
+        return { Lx, Ly, at, V: outrigger.V, rectCenterX: outrigger.rect_center_x ?? 0 };
+      }
       const { Lx, Ly } = parseOutriggerConfig(state.outrigger_config);
       const at = cornerLoadsAtAngle(
         {
@@ -432,11 +609,11 @@ function CogTab(props: {
         state.slew_angle,
       );
       const V = selfW + state.counterweight + totalLoad;
-      return { Lx, Ly, at, V };
+      return { Lx, Ly, at, V, rectCenterX: 0 };
     } catch {
       return null;
     }
-  }, [crane, state, selfW, totalLoad]);
+  }, [crane, state, selfW, totalLoad, outrigger]);
 
   if (!data) {
     return <ScrollView contentContainerStyle={s.pad}><Empty text={outriggerError ?? "Ağırlık merkezi hesaplanamadı (vinç ağırlığı/ayak tanımı eksik)."} /></ScrollView>;
@@ -451,7 +628,7 @@ function CogTab(props: {
   return (
     <ScrollView contentContainerStyle={s.pad}>
       <View style={s.card}>
-        <GroundForceDiagram Lx={data.Lx} Ly={data.Ly} atAngle={data.at} V={data.V} radius={state.radius} slewAngle={state.slew_angle} width={width - 24} />
+        <GroundForceDiagram Lx={data.Lx} Ly={data.Ly} atAngle={data.at} V={data.V} radius={state.radius} slewAngle={state.slew_angle} width={width - 24} rectCenterX={data.rectCenterX} />
         <View style={[s.cogVerdict, { backgroundColor: outside ? "rgba(255,90,77,0.12)" : uplift ? "rgba(255,186,32,0.12)" : "rgba(0,228,117,0.1)" }]}>
           <Text style={[s.cogVerdictText, { color: outside ? C.red : uplift ? C.accent : C.green }]}>
             {outside
@@ -580,6 +757,17 @@ const s = StyleSheet.create({
   headerTop: { flexDirection: "row", alignItems: "baseline", gap: 8, marginBottom: 8 },
   brand: { color: C.accent, fontSize: 20, fontWeight: "900", letterSpacing: 1 },
   brandSub: { color: C.textDim, fontSize: 13, fontWeight: "600" },
+  openBtn: { paddingHorizontal: 12, height: 34, minWidth: 100, borderRadius: 17, borderWidth: 1, borderColor: C.accent, alignItems: "center", justifyContent: "center", alignSelf: "center" },
+  openBtnText: { color: C.accent, fontSize: 13, fontWeight: "800" },
+  importBanner: { flexDirection: "row", alignItems: "flex-start", marginHorizontal: 12, marginTop: 10, padding: 12, borderRadius: 12, borderWidth: 1, gap: 8 },
+  importLine: { color: C.textDim, fontSize: 12, marginTop: 3 },
+  importClose: { paddingHorizontal: 4 },
+  modalBackdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.6)", justifyContent: "center", padding: 20 },
+  modalCard: { backgroundColor: C.panel, borderRadius: 16, padding: 16, borderWidth: 1, borderColor: C.border },
+  stepItem: { backgroundColor: C.panel2, borderRadius: 12, padding: 14, marginBottom: 8, borderWidth: 1, borderColor: C.border },
+  stepItemText: { color: C.text, fontSize: 15, fontWeight: "700" },
+  stepItemSub: { color: C.textFaint, fontSize: 12, marginTop: 3, fontFamily: mono },
+  modalCancel: { alignItems: "center", paddingVertical: 12, marginTop: 4 },
   craneChip: { paddingHorizontal: 14, height: 38, borderRadius: 19, backgroundColor: C.panel2, borderWidth: 1, borderColor: C.border, alignItems: "center", justifyContent: "center" },
   craneChipActive: { backgroundColor: C.panel2, borderColor: C.accent },
   craneChipText: { color: C.textDim, fontSize: 13, fontWeight: "700" },
